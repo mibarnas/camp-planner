@@ -12,7 +12,6 @@ use App\Models\User;
 use App\Support\NameDays;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -50,6 +49,20 @@ class CampController extends Controller
         ]);
     }
 
+    /**
+     * The camp-creation wizard.
+     */
+    public function create(Request $request): Response
+    {
+        return Inertia::render('camps/Create', [
+            'libraries' => $request->user()->activityLibraries()
+                ->orderBy('name')->get()
+                ->map(fn (ActivityLibrary $l) => $l->only(['id', 'name']))
+                ->values(),
+            'defaultSlots' => $this->defaultSlots(),
+        ]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
@@ -59,6 +72,16 @@ class CampController extends Controller
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'activity_library_id' => ['nullable', 'exists:activity_libraries,id'],
+            'slots' => ['nullable', 'array'],
+            'slots.*.name' => ['required_with:slots', 'string', 'max:255'],
+            'slots.*.start_time' => ['required_with:slots', 'date_format:H:i'],
+            'slots.*.end_time' => ['required_with:slots', 'date_format:H:i', 'after:slots.*.start_time'],
+            'slots.*.kind' => ['required_with:slots', 'in:fixed,activity'],
+            'slots.*.color' => ['nullable', 'string', 'max:20'],
+            'trip_dates' => ['nullable', 'array'],
+            'trip_dates.*' => ['date'],
+            'leader_emails' => ['nullable', 'array'],
+            'leader_emails.*' => ['email', 'max:255'],
         ]);
 
         $user = $request->user();
@@ -81,15 +104,35 @@ class CampController extends Controller
             }
 
             $camp = Camp::create([
-                ...Arr::except($data, 'activity_library_id'),
                 'owner_id' => $user->id,
                 'activity_library_id' => $library->id,
+                'name' => $data['name'],
+                'year' => $data['year'],
+                'description' => $data['description'] ?? null,
+                'start_date' => $data['start_date'],
+                'end_date' => $data['end_date'],
             ]);
 
             $camp->addMember($user, 'owner');
 
-            $this->seedDefaultSlots($camp);
-            $this->generateDays($camp);
+            // Daily blocks: from the wizard, or the sensible defaults.
+            $slots = ! empty($data['slots']) ? $data['slots'] : $this->defaultSlots();
+            foreach (array_values($slots) as $i => $slot) {
+                $camp->timeSlots()->create([
+                    'name' => $slot['name'],
+                    'start_time' => $slot['start_time'],
+                    'end_time' => $slot['end_time'],
+                    'kind' => $slot['kind'],
+                    'color' => $slot['color'] ?? null,
+                    'position' => $i,
+                ]);
+            }
+
+            $this->generateDays($camp, $data['trip_dates'] ?? null);
+
+            foreach ($data['leader_emails'] ?? [] as $email) {
+                $this->inviteLeader($camp, $email, $user);
+            }
 
             return $camp;
         });
@@ -98,6 +141,32 @@ class CampController extends Controller
             'type' => 'success',
             'message' => __('Camp created.'),
         ]);
+    }
+
+    /**
+     * Add an existing user as a leader, or store a pending e-mail invitation.
+     */
+    protected function inviteLeader(Camp $camp, string $email, User $inviter): void
+    {
+        $email = strtolower(trim($email));
+        if ($email === '') {
+            return;
+        }
+
+        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+
+        if ($user) {
+            if (! $camp->hasMember($user)) {
+                $camp->addMember($user, 'leader');
+            }
+
+            return;
+        }
+
+        $camp->invitations()->updateOrCreate(
+            ['email' => $email],
+            ['role' => 'leader', 'invited_by' => $inviter->id, 'accepted_at' => null],
+        );
     }
 
     public function show(Camp $camp): Response
@@ -211,7 +280,15 @@ class CampController extends Controller
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
         ]);
 
+        $datesChanged = $camp->start_date->toDateString() !== Carbon::parse($data['start_date'])->toDateString()
+            || $camp->end_date->toDateString() !== Carbon::parse($data['end_date'])->toDateString();
+
         $camp->update($data);
+
+        // Days are the days the camp spans — keep them in sync with the range.
+        if ($datesChanged) {
+            $this->syncDays($camp->refresh());
+        }
 
         return back()->with('toast', ['type' => 'success', 'message' => __('Camp updated.')]);
     }
@@ -306,11 +383,13 @@ class CampController extends Controller
     }
 
     /**
-     * Create the default daily time skeleton for a new camp.
+     * The default daily time skeleton offered by the wizard.
+     *
+     * @return list<array{name: string, start_time: string, end_time: string, kind: string, color: string}>
      */
-    protected function seedDefaultSlots(Camp $camp): void
+    protected function defaultSlots(): array
     {
-        $defaults = [
+        return [
             ['name' => 'Ranné chvály', 'start_time' => '08:00', 'end_time' => '08:30', 'kind' => 'activity', 'color' => 'sky'],
             ['name' => 'Scénka', 'start_time' => '08:30', 'end_time' => '09:00', 'kind' => 'activity', 'color' => 'violet'],
             ['name' => 'BLOK I.', 'start_time' => '09:00', 'end_time' => '12:00', 'kind' => 'activity', 'color' => 'emerald'],
@@ -320,16 +399,14 @@ class CampController extends Controller
             ['name' => 'BLOK II.', 'start_time' => '13:45', 'end_time' => '15:30', 'kind' => 'activity', 'color' => 'emerald'],
             ['name' => 'Slovko', 'start_time' => '15:30', 'end_time' => '16:00', 'kind' => 'activity', 'color' => 'rose'],
         ];
-
-        foreach ($defaults as $i => $slot) {
-            $camp->timeSlots()->create([...$slot, 'position' => $i]);
-        }
     }
 
     /**
      * Generate a CampDay for each calendar day between start and end, skipping none.
+     *
+     * @param  list<string>|null  $tripDates  dates flagged as trips (else Tue/Thu default)
      */
-    protected function generateDays(Camp $camp): void
+    protected function generateDays(Camp $camp, ?array $tripDates = null): void
     {
         $existing = $camp->days()->pluck('date')->map(fn ($d) => Carbon::parse($d)->toDateString())->all();
 
@@ -339,17 +416,75 @@ class CampController extends Controller
         $position = $camp->days()->count();
 
         while ($cursor->lte($end)) {
-            if (! in_array($cursor->toDateString(), $existing, true)) {
+            $date = $cursor->toDateString();
+            if (! in_array($date, $existing, true)) {
                 $camp->days()->create([
-                    'date' => $cursor->toDateString(),
+                    'date' => $date,
                     'position' => $position++,
-                    // Tuesdays and Thursdays default to trip days.
-                    'is_trip' => in_array($cursor->dayOfWeek, [Carbon::TUESDAY, Carbon::THURSDAY], true),
+                    'is_trip' => $tripDates !== null
+                        ? in_array($date, $tripDates, true)
+                        : in_array($cursor->dayOfWeek, [Carbon::TUESDAY, Carbon::THURSDAY], true),
                     'name_days' => NameDays::for($cursor),
                 ]);
             }
             $cursor = $cursor->addDay();
         }
+    }
+
+    /**
+     * Reconcile the camp's days with its date range (days are the days the camp
+     * spans — not manually added/removed). Existing days keep their content and
+     * shift by position; surplus days are removed, missing ones created.
+     */
+    protected function syncDays(Camp $camp): void
+    {
+        $dates = [];
+        $cursor = Carbon::parse($camp->start_date->toDateString());
+        $end = Carbon::parse($camp->end_date->toDateString());
+        while ($cursor->lte($end)) {
+            $dates[] = $cursor->toDateString();
+            $cursor = $cursor->addDay();
+        }
+        $count = count($dates);
+
+        DB::transaction(function () use ($camp, $dates, $count) {
+            $days = $camp->days()->orderBy('position')->orderBy('date')->get()->values();
+
+            // Drop days beyond the new length (their program cascades away).
+            $days->slice($count)->each->delete();
+            $kept = $days->slice(0, $count)->values();
+
+            $originalDates = $kept->map(fn (CampDay $d) => $d->date->toDateString())->all();
+
+            // Park kept days on temporary, distinct dates to dodge the (camp_id,date)
+            // unique index while re-dating them by position.
+            $parkBase = Carbon::parse('2999-01-01');
+            foreach ($kept as $i => $day) {
+                $day->update([
+                    'date' => $parkBase->copy()->addDays($i)->toDateString(),
+                    'position' => $i,
+                ]);
+            }
+
+            // Assign the real dates; refresh name days only where the date changed.
+            foreach ($kept as $i => $day) {
+                $attrs = ['date' => $dates[$i]];
+                if (($originalDates[$i] ?? null) !== $dates[$i]) {
+                    $attrs['name_days'] = NameDays::for($dates[$i]);
+                }
+                $day->update($attrs);
+            }
+
+            // Create any missing trailing days.
+            for ($i = $kept->count(); $i < $count; $i++) {
+                $camp->days()->create([
+                    'date' => $dates[$i],
+                    'position' => $i,
+                    'is_trip' => false,
+                    'name_days' => NameDays::for($dates[$i]),
+                ]);
+            }
+        });
     }
 
     /**

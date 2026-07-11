@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { router, useForm } from '@inertiajs/vue3';
-import { Trash2 } from '@lucide/vue';
+import { useForm } from '@inertiajs/vue3';
 import { watch } from 'vue';
-import { destroy as destroyDay, update as updateDay } from '@/routes/days';
+import { update as updateDay } from '@/routes/days';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -60,15 +59,6 @@ function submit() {
         onSuccess: () => emit('update:open', false),
     });
 }
-
-function remove() {
-    if (!props.day) return;
-    if (!confirm(`Zmazať ${props.day.weekday} ${props.day.label} aj s celým programom tohto dňa?`)) return;
-    router.delete(destroyDay(props.day.id).url, {
-        preserveScroll: true,
-        onSuccess: () => emit('update:open', false),
-    });
-}
 </script>
 
 <template>
@@ -120,14 +110,9 @@ function remove() {
                 </div>
             </form>
 
-            <DialogFooter class="sm:justify-between">
-                <Button type="button" variant="ghost" class="text-destructive" @click="remove">
-                    <Trash2 /> Zmazať deň
-                </Button>
-                <div class="flex gap-2">
-                    <Button type="button" variant="outline" @click="emit('update:open', false)">Zrušiť</Button>
-                    <Button type="button" :disabled="form.processing" @click="submit">Uložiť</Button>
-                </div>
+            <DialogFooter>
+                <Button type="button" variant="outline" @click="emit('update:open', false)">Zrušiť</Button>
+                <Button type="button" :disabled="form.processing" @click="submit">Uložiť</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

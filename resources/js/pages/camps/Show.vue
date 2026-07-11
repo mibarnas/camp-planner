@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
-import { CalendarHeart, CalendarPlus, Columns3, Copy, Settings, Trash2, Users } from '@lucide/vue';
+import { CalendarHeart, Columns3, Copy, Settings, Trash2, Users } from '@lucide/vue';
 import { ref, watch, watchEffect } from 'vue';
 import DayDialog from '@/components/camp/DayDialog.vue';
 import EntryDialog from '@/components/camp/EntryDialog.vue';
@@ -22,7 +22,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import InputError from '@/components/InputError.vue';
 import { index as campsIndex } from '@/routes/camps';
-import { store as storeDay } from '@/routes/days';
 import { destroy as destroyCamp, duplicate as duplicateCamp, fillNameDays, update as updateCamp } from '@/routes/camps';
 import { bulkDestroy, bulkUpdate, toggle as toggleEntry } from '@/routes/entries';
 import type {
@@ -128,19 +127,6 @@ function onEditDay(day: CampDay) {
 const slotsOpen = ref(false);
 const membersOpen = ref(false);
 
-// --- Add day ---
-const addDayOpen = ref(false);
-const addDayForm = useForm({ date: '' });
-function submitAddDay() {
-    addDayForm.post(storeDay(props.camp.id).url, {
-        preserveScroll: true,
-        onSuccess: () => {
-            addDayOpen.value = false;
-            addDayForm.reset();
-        },
-    });
-}
-
 // --- Fill name days from the Slovak calendar ---
 function fillNames() {
     router.post(fillNameDays(props.camp.id).url, {}, { preserveScroll: true });
@@ -222,9 +208,6 @@ function submitDuplicate() {
                 <Button variant="outline" size="sm" @click="slotsOpen = true">
                     <Columns3 /> Časové bloky
                 </Button>
-                <Button variant="outline" size="sm" @click="addDayOpen = true">
-                    <CalendarPlus /> Pridať deň
-                </Button>
                 <Button variant="outline" size="sm" title="Doplniť meniny z kalendára" @click="fillNames">
                     <CalendarHeart /> Doplniť meniny
                 </Button>
@@ -287,25 +270,6 @@ function submitDuplicate() {
         :is-owner="camp.is_owner"
     />
 
-    <!-- Add day -->
-    <Dialog v-model:open="addDayOpen">
-        <DialogContent class="sm:max-w-sm">
-            <DialogHeader>
-                <DialogTitle>Pridať deň</DialogTitle>
-                <DialogDescription>Pridá nový deň do tábora.</DialogDescription>
-            </DialogHeader>
-            <form class="grid gap-2" @submit.prevent="submitAddDay">
-                <Label for="add-day-date">Dátum</Label>
-                <Input id="add-day-date" v-model="addDayForm.date" type="date" required />
-                <InputError :message="addDayForm.errors.date" />
-                <DialogFooter class="mt-2">
-                    <Button type="button" variant="outline" @click="addDayOpen = false">Zrušiť</Button>
-                    <Button type="submit" :disabled="addDayForm.processing">Pridať</Button>
-                </DialogFooter>
-            </form>
-        </DialogContent>
-    </Dialog>
-
     <!-- Settings -->
     <Dialog v-model:open="settingsOpen">
         <DialogContent class="sm:max-w-lg">
@@ -336,6 +300,10 @@ function submitDuplicate() {
                         <InputError :message="settingsForm.errors.end_date" />
                     </div>
                 </div>
+                <p class="-mt-2 text-xs text-muted-foreground">
+                    Dni tábora sú dané dátumami. Zmenou termínu sa posunú (program ostáva); skrátením/predĺžením
+                    sa dni odoberú alebo pridajú.
+                </p>
                 <div class="grid gap-2">
                     <Label for="set-desc">Popis</Label>
                     <Textarea id="set-desc" v-model="settingsForm.description" />

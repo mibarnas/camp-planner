@@ -2,33 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Camp;
 use App\Models\CampDay;
-use App\Support\NameDays;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class CampDayController extends Controller
 {
-    public function store(Request $request, Camp $camp): RedirectResponse
-    {
-        $this->authorize('update', $camp);
-
-        $data = $request->validate([
-            'date' => ['required', 'date'],
-        ]);
-
-        $camp->days()->firstOrCreate(
-            ['date' => $data['date']],
-            [
-                'position' => $camp->days()->max('position') + 1,
-                'name_days' => NameDays::for($data['date']),
-            ],
-        );
-
-        return back()->with('toast', ['type' => 'success', 'message' => __('Day added.')]);
-    }
-
+    /**
+     * Days are derived from the camp's date range, so only their meta is editable
+     * (trip flag, name days, materials, notes) — they can't be added or removed.
+     */
     public function update(Request $request, CampDay $day): RedirectResponse
     {
         $this->authorize('update', $day->camp);
@@ -45,14 +28,5 @@ class CampDayController extends Controller
         $day->update($data);
 
         return back()->with('toast', ['type' => 'success', 'message' => __('Day updated.')]);
-    }
-
-    public function destroy(CampDay $day): RedirectResponse
-    {
-        $this->authorize('update', $day->camp);
-
-        $day->delete();
-
-        return back()->with('toast', ['type' => 'success', 'message' => __('Day removed.')]);
     }
 }

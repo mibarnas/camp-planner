@@ -26,6 +26,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Camps
     Route::get('camps', [CampController::class, 'index'])->name('camps.index');
+    Route::get('camps/create', [CampController::class, 'create'])->name('camps.create');
     Route::post('camps', [CampController::class, 'store'])->name('camps.store');
     Route::get('camps/{camp}', [CampController::class, 'show'])->name('camps.show');
     Route::put('camps/{camp}', [CampController::class, 'update'])->name('camps.update');
@@ -33,10 +34,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('camps/{camp}/duplicate', [CampController::class, 'duplicate'])->name('camps.duplicate');
     Route::post('camps/{camp}/fill-name-days', [CampController::class, 'fillNameDays'])->name('camps.fillNameDays');
 
-    // Camp days
-    Route::post('camps/{camp}/days', [CampDayController::class, 'store'])->name('days.store');
+    // Camp days (derived from the date range — only their meta is editable)
     Route::put('days/{day}', [CampDayController::class, 'update'])->name('days.update');
-    Route::delete('days/{day}', [CampDayController::class, 'destroy'])->name('days.destroy');
 
     // Time slots (columns)
     Route::post('camps/{camp}/slots', [TimeSlotController::class, 'store'])->name('slots.store');

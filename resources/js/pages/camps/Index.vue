@@ -1,24 +1,20 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
 import { CalendarDays, Crown, Plus, Tent, Users } from '@lucide/vue';
-import { ref } from 'vue';
-import CampFormDialog from '@/components/camp/CampFormDialog.vue';
 import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { show } from '@/routes/camps';
-import type { ActivityLibraryRef, CampListItem } from '@/types/camp';
+import { create as createCamp, show } from '@/routes/camps';
+import type { CampListItem } from '@/types/camp';
 
-defineProps<{ camps: CampListItem[]; libraries: ActivityLibraryRef[] }>();
+defineProps<{ camps: CampListItem[] }>();
 
 defineOptions({
     layout: {
         breadcrumbs: [{ title: 'Tábory', href: '/camps' }],
     },
 });
-
-const dialogOpen = ref(false);
 
 function formatRange(start: string | null, end: string | null): string {
     if (!start || !end) {
@@ -35,9 +31,11 @@ function formatRange(start: string | null, end: string | null): string {
     <div class="flex h-full flex-1 flex-col gap-6 p-4">
         <div class="flex items-start justify-between gap-4">
             <Heading title="Tábory" description="Plánovanie denných táborov pre tvoju farnosť." />
-            <Button @click="dialogOpen = true">
-                <Plus />
-                Nový tábor
+            <Button as-child>
+                <Link :href="createCamp().url">
+                    <Plus />
+                    Nový tábor
+                </Link>
             </Button>
         </div>
 
@@ -83,12 +81,12 @@ function formatRange(start: string | null, end: string | null): string {
             <Tent class="mx-auto size-10 text-muted-foreground" />
             <h3 class="mt-4 font-medium">Zatiaľ žiadne tábory</h3>
             <p class="mt-1 text-sm text-muted-foreground">Vytvor svoj prvý denný tábor a naplánuj program.</p>
-            <Button class="mt-4" @click="dialogOpen = true">
-                <Plus />
-                Nový tábor
+            <Button as-child class="mt-4">
+                <Link :href="createCamp().url">
+                    <Plus />
+                    Nový tábor
+                </Link>
             </Button>
         </div>
     </div>
-
-    <CampFormDialog v-model:open="dialogOpen" :libraries="libraries" />
 </template>
