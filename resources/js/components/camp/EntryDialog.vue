@@ -1,0 +1,290 @@
+<script setup lang="ts">
+import { router, useForm } from '@inertiajs/vue3';
+import { Check, Clock, PenLine, Search, Trash2 } from '@lucide/vue';
+import { computed, ref, watch } from 'vue';
+import { destroy as destroyEntry, store as storeEntry, update as updateEntry } from '@/routes/entries';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import InputError from '@/components/InputError.vue';
+import { CATEGORIES, categoryColor, categoryLabel, colorStyle } from '@/lib/campColors';
+import { durationLabel, minToTime, timeToMin } from '@/lib/timeline';
+import type { Activity, CampDay, ProgramEntry } from '@/types/camp';
+
+const props = defineProps<{
+    open: boolean;
+    day: CampDay | null;
+    entry: ProgramEntry | null;
+    activities: Activity[];
+    startMin?: number;
+}>();
+
+const emit = defineEmits<{ 'update:open': [value: boolean] }>();
+
+const form = useForm({
+    camp_day_id: 0,
+    activity_id: null as number | null,
+    start_time: '09:00',
+    duration: 60,
+    title: '',
+    description: '',
+    responsible: '',
+    materials: '',
+    notes: '',
+});
+
+// --- Picker state ---
+const mode = ref<'library' | 'custom'>('library');
+const search = ref('');
+const categoryFilter = ref<string>('all');
+
+const presentCategories = computed(() =>
+    CATEGORIES.filter((c) => props.activities.some((a) => a.category === c.value)),
+);
+
+const filteredActivities = computed(() => {
+    const q = search.value.trim().toLowerCase();
+    return props.activities.filter(
+        (a) =>
+            (categoryFilter.value === 'all' || a.category === categoryFilter.value) &&
+            (!q || a.name.toLowerCase().includes(q) || (a.description ?? '').toLowerCase().includes(q)),
+    );
+});
+
+const endTime = computed(() =>
+    minToTime(timeToMin(form.start_time || '00:00') + Number(form.duration || 0)),
+);
+
+watch(
+    () => props.open,
+    (open) => {
+        if (!open || !props.day) return;
+        const e = props.entry;
+        form.clearErrors();
+        form.defaults({
+            camp_day_id: props.day.id,
+            activity_id: e?.activity_id ?? null,
+            start_time: e?.start_time ?? minToTime(props.startMin ?? 9 * 60),
+            duration: e?.duration ?? 60,
+            title: e?.title ?? '',
+            description: e?.description ?? '',
+            responsible: e?.responsible ?? '',
+            materials: e?.materials ?? '',
+            notes: e?.notes ?? '',
+        });
+        form.reset();
+        mode.value = e && e.activity_id === null && (e.title || e.description) ? 'custom' : 'library';
+        search.value = '';
+        categoryFilter.value = 'all';
+    },
+);
+
+function pickActivity(activity: Activity) {
+    if (form.activity_id === activity.id) {
+        // Second click unselects -> back to a blank slate.
+        form.activity_id = null;
+        return;
+    }
+    form.activity_id = activity.id;
+    form.title = activity.name;
+    form.description = activity.description ?? '';
+    form.materials = activity.materials ?? '';
+    if (!props.entry) form.duration = activity.default_duration;
+}
+
+function switchMode(next: 'library' | 'custom') {
+    mode.value = next;
+    if (next === 'custom') form.activity_id = null;
+}
+
+function submit() {
+    const options = {
+        preserveScroll: true,
+        onSuccess: () => emit('update:open', false),
+    };
+    if (props.entry) {
+        form.put(updateEntry(props.entry.id).url, options);
+    } else {
+        form.post(storeEntry().url, options);
+    }
+}
+
+function remove() {
+    if (!props.entry) {
+        emit('update:open', false);
+        return;
+    }
+    router.delete(destroyEntry(props.entry.id).url, {
+        preserveScroll: true,
+        onSuccess: () => emit('update:open', false),
+    });
+}
+</script>
+
+<template>
+    <Dialog :open="open" @update:open="emit('update:open', $event)">
+        <DialogContent class="sm:max-w-2xl">
+            <DialogHeader>
+                <DialogTitle>
+                    {{ entry ? 'Upraviť aktivitu' : 'Nová aktivita' }}
+                    <span class="text-muted-foreground">· {{ day?.weekday }} {{ day?.label }}</span>
+                </DialogTitle>
+                <DialogDescription>{{ form.start_time }}–{{ endTime }}</DialogDescription>
+            </DialogHeader>
+
+            <div class="grid max-h-[65vh] gap-4 overflow-y-auto px-1">
+                <!-- Source tabs -->
+                <div class="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+                    <button
+                        type="button"
+                        class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                        :class="mode === 'library' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                        @click="switchMode('library')"
+                    >
+                        Z knižnice
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                        :class="mode === 'custom' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                        @click="switchMode('custom')"
+                    >
+                        <PenLine class="mr-1 inline size-3.5" /> Vlastná aktivita
+                    </button>
+                </div>
+
+                <!-- Library picker -->
+                <div v-if="mode === 'library'" class="grid gap-3">
+                    <div class="relative">
+                        <Search class="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input v-model="search" placeholder="Hľadať aktivitu…" class="pl-8" />
+                    </div>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button
+                            type="button"
+                            class="rounded-full border px-2.5 py-0.5 text-xs transition-colors"
+                            :class="categoryFilter === 'all' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'"
+                            @click="categoryFilter = 'all'"
+                        >
+                            Všetky
+                        </button>
+                        <button
+                            v-for="c in presentCategories"
+                            :key="c.value"
+                            type="button"
+                            class="rounded-full border px-2.5 py-0.5 text-xs transition-colors"
+                            :class="categoryFilter === c.value ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'"
+                            @click="categoryFilter = c.value"
+                        >
+                            {{ c.label }}
+                        </button>
+                    </div>
+
+                    <div v-if="filteredActivities.length" class="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                        <button
+                            v-for="a in filteredActivities"
+                            :key="a.id"
+                            type="button"
+                            class="relative flex flex-col gap-1 rounded-lg border p-2.5 text-left transition-all hover:border-primary/50"
+                            :class="form.activity_id === a.id ? 'border-primary ring-2 ring-primary/30' : ''"
+                            @click="pickActivity(a)"
+                        >
+                            <span
+                                v-if="form.activity_id === a.id"
+                                class="absolute top-2 right-2 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground"
+                            >
+                                <Check class="size-3" />
+                            </span>
+                            <span class="flex items-center gap-1.5 pr-5">
+                                <span class="size-2.5 shrink-0 rounded-full" :class="colorStyle(a.color ?? categoryColor(a.category)).dot" />
+                                <span class="truncate text-sm font-medium">{{ a.name }}</span>
+                            </span>
+                            <span class="flex items-center gap-2">
+                                <Badge variant="secondary" class="px-1.5 py-0 text-[10px]" :class="colorStyle(a.color ?? categoryColor(a.category)).chip">
+                                    {{ categoryLabel(a.category) }}
+                                </Badge>
+                                <span class="flex items-center gap-0.5 text-[11px] text-muted-foreground">
+                                    <Clock class="size-3" /> {{ durationLabel(a.default_duration) }}
+                                </span>
+                            </span>
+                            <span v-if="a.description" class="line-clamp-2 text-xs text-muted-foreground">
+                                {{ a.description }}
+                            </span>
+                        </button>
+                    </div>
+                    <p v-else class="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                        Žiadne aktivity. Skús iné hľadanie alebo vytvor vlastnú aktivitu.
+                    </p>
+                </div>
+
+                <!-- Shared fields -->
+                <form class="grid gap-4" @submit.prevent="submit">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="grid gap-2">
+                            <Label for="entry-start">Začiatok</Label>
+                            <Input id="entry-start" v-model="form.start_time" type="time" step="300" required />
+                            <InputError :message="form.errors.start_time" />
+                        </div>
+                        <div class="grid gap-2">
+                            <Label for="entry-duration">Dĺžka (min) — koniec {{ endTime }}</Label>
+                            <Input id="entry-duration" v-model="form.duration" type="number" min="5" max="1440" step="5" required />
+                            <InputError :message="form.errors.duration" />
+                        </div>
+                    </div>
+
+                    <div class="grid gap-2">
+                        <Label for="entry-title">Názov</Label>
+                        <Input id="entry-title" v-model="form.title" placeholder="Napr. Zoznamovačky" />
+                        <InputError :message="form.errors.title" />
+                    </div>
+
+                    <div class="grid gap-2">
+                        <Label for="entry-desc">Program / scenár</Label>
+                        <Textarea id="entry-desc" v-model="form.description" class="min-h-24" />
+                        <InputError :message="form.errors.description" />
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="grid gap-2">
+                            <Label for="entry-resp">Zodpovedný</Label>
+                            <Input id="entry-resp" v-model="form.responsible" placeholder="Meno animátora" />
+                            <InputError :message="form.errors.responsible" />
+                        </div>
+                        <div class="grid gap-2">
+                            <Label for="entry-mat">Materiál</Label>
+                            <Input id="entry-mat" v-model="form.materials" />
+                            <InputError :message="form.errors.materials" />
+                        </div>
+                    </div>
+
+                    <div class="grid gap-2">
+                        <Label for="entry-notes">Poznámky</Label>
+                        <Textarea id="entry-notes" v-model="form.notes" class="min-h-16" placeholder="Interné poznámky k tejto aktivite v programe…" />
+                        <InputError :message="form.errors.notes" />
+                    </div>
+                </form>
+            </div>
+
+            <DialogFooter class="sm:justify-between">
+                <Button v-if="entry" type="button" variant="ghost" class="text-destructive" @click="remove">
+                    <Trash2 /> Odstrániť
+                </Button>
+                <span v-else />
+                <div class="flex gap-2">
+                    <Button type="button" variant="outline" @click="emit('update:open', false)">Zrušiť</Button>
+                    <Button type="button" :disabled="form.processing" @click="submit">Uložiť</Button>
+                </div>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+</template>
