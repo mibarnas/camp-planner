@@ -70,10 +70,16 @@ export type CampDay = {
     entries: ProgramEntry[];
 };
 
+export type ActivityCategory = {
+    id: number;
+    name: string;
+    color: string | null;
+};
+
 export type Activity = {
     id: number;
     name: string;
-    category: string;
+    category_id: number | null;
     description: string | null;
     default_duration: number;
     color: string | null;

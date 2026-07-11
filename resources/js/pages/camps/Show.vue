@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
-import { CalendarPlus, Columns3, Copy, Settings, Trash2, Users } from '@lucide/vue';
+import { CalendarHeart, CalendarPlus, Columns3, Copy, Settings, Trash2, Users } from '@lucide/vue';
 import { ref, watch, watchEffect } from 'vue';
 import DayDialog from '@/components/camp/DayDialog.vue';
 import EntryDialog from '@/components/camp/EntryDialog.vue';
@@ -23,10 +23,11 @@ import { Textarea } from '@/components/ui/textarea';
 import InputError from '@/components/InputError.vue';
 import { index as campsIndex } from '@/routes/camps';
 import { store as storeDay } from '@/routes/days';
-import { destroy as destroyCamp, duplicate as duplicateCamp, update as updateCamp } from '@/routes/camps';
+import { destroy as destroyCamp, duplicate as duplicateCamp, fillNameDays, update as updateCamp } from '@/routes/camps';
 import { bulkDestroy, bulkUpdate, toggle as toggleEntry } from '@/routes/entries';
 import type {
     Activity,
+    ActivityCategory,
     ActivityLibraryRef,
     Camp,
     CampDay,
@@ -45,6 +46,7 @@ const props = defineProps<{
     invitations: CampInvitation[];
     shareLink: ShareLink | null;
     activities: Activity[];
+    categories: ActivityCategory[];
     library: ActivityLibraryRef | null;
 }>();
 
@@ -139,6 +141,11 @@ function submitAddDay() {
     });
 }
 
+// --- Fill name days from the Slovak calendar ---
+function fillNames() {
+    router.post(fillNameDays(props.camp.id).url, {}, { preserveScroll: true });
+}
+
 // --- Settings / edit camp ---
 const settingsOpen = ref(false);
 const settingsForm = useForm({
@@ -218,6 +225,9 @@ function submitDuplicate() {
                 <Button variant="outline" size="sm" @click="addDayOpen = true">
                     <CalendarPlus /> Pridať deň
                 </Button>
+                <Button variant="outline" size="sm" title="Doplniť meniny z kalendára" @click="fillNames">
+                    <CalendarHeart /> Doplniť meniny
+                </Button>
                 <Button variant="outline" size="sm" @click="membersOpen = true">
                     <Users /> Vedúci
                 </Button>
@@ -234,8 +244,7 @@ function submitDuplicate() {
         <p class="text-xs text-muted-foreground">
             Klikni do voľného miesta a pridaj aktivitu. Aktivitu <strong>potiahni</strong> pre presun,
             za pravý okraj pre zmenu dĺžky. <strong>Ctrl+klik</strong> označí viac aktivít (presúvajú sa
-            spolu), <strong>pravý klik</strong> otvorí menu. Šrafovaný červený okraj = presah do ďalšieho
-            bloku (napr. do obeda).
+            spolu), <strong>pravý klik</strong> otvorí menu.
         </p>
 
         <!-- Timetable -->
@@ -263,6 +272,8 @@ function submitDuplicate() {
         :day="selectedDay"
         :entry="selectedEntry"
         :activities="activities"
+        :categories="categories"
+        :library="library"
         :start-min="addStartMin"
     />
     <DayDialog v-model:open="dayOpen" :day="dayForDialog" />

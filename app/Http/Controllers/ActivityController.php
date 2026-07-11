@@ -104,13 +104,16 @@ class ActivityController extends Controller
      */
     protected function validateData(Request $request, ?ActivityLibrary $library, bool $withLibrary = false): array
     {
+        $categoryRule = ['nullable'];
+        if ($library) {
+            // The chosen category must belong to this activity's library.
+            $categoryRule[] = Rule::exists('activity_categories', 'id')
+                ->where('activity_library_id', $library->id);
+        }
+
         return $request->validate([
             ...($withLibrary ? ['activity_library_id' => ['required', 'exists:activity_libraries,id']] : []),
-            'activity_category_id' => [
-                'nullable',
-                Rule::exists('activity_categories', 'id')
-                    ->where('activity_library_id', $library?->id ?? 0),
-            ],
+            'activity_category_id' => $categoryRule,
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'default_duration' => ['required', 'integer', 'min:5', 'max:1440'],

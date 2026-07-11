@@ -6,10 +6,13 @@ use App\Models\Activity;
 use App\Models\ActivityLibrary;
 use App\Models\Camp;
 use App\Models\CampDay;
+use App\Models\ProgramEntry;
 use App\Models\TimeSlot;
 use App\Models\User;
+use App\Support\NameDays;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -78,7 +81,7 @@ class CampController extends Controller
             }
 
             $camp = Camp::create([
-                ...\Illuminate\Support\Arr::except($data, 'activity_library_id'),
+                ...Arr::except($data, 'activity_library_id'),
                 'owner_id' => $user->id,
                 'activity_library_id' => $library->id,
             ]);
@@ -120,7 +123,7 @@ class CampController extends Controller
         ])->values();
 
         $days = $camp->days->map(function (CampDay $day) {
-            $entries = $day->entries->map(fn (\App\Models\ProgramEntry $entry) => [
+            $entries = $day->entries->map(fn (ProgramEntry $entry) => [
                 'id' => $entry->id,
                 'activity_id' => $entry->activity_id,
                 'activity' => $entry->activity?->only(['id', 'name', 'color']),
@@ -342,9 +345,35 @@ class CampController extends Controller
                     'position' => $position++,
                     // Tuesdays and Thursdays default to trip days.
                     'is_trip' => in_array($cursor->dayOfWeek, [Carbon::TUESDAY, Carbon::THURSDAY], true),
+                    'name_days' => NameDays::for($cursor),
                 ]);
             }
             $cursor = $cursor->addDay();
         }
+    }
+
+    /**
+     * Fill in Slovak name days for every camp day that doesn't have one yet.
+     */
+    public function fillNameDays(Camp $camp): RedirectResponse
+    {
+        $this->authorize('update', $camp);
+
+        $filled = 0;
+        $days = $camp->days()
+            ->where(fn ($q) => $q->whereNull('name_days')->orWhere('name_days', ''))
+            ->get();
+
+        foreach ($days as $day) {
+            if ($name = NameDays::for($day->date)) {
+                $day->update(['name_days' => $name]);
+                $filled++;
+            }
+        }
+
+        return back()->with('toast', [
+            'type' => 'success',
+            'message' => __('Filled name days for :count days.', ['count' => $filled]),
+        ]);
     }
 }

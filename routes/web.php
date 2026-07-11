@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ActivityCategoryController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\ActivityLibraryController;
 use App\Http\Controllers\CampController;
@@ -29,6 +30,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('camps/{camp}', [CampController::class, 'update'])->name('camps.update');
     Route::delete('camps/{camp}', [CampController::class, 'destroy'])->name('camps.destroy');
     Route::post('camps/{camp}/duplicate', [CampController::class, 'duplicate'])->name('camps.duplicate');
+    Route::post('camps/{camp}/fill-name-days', [CampController::class, 'fillNameDays'])->name('camps.fillNameDays');
 
     // Camp days
     Route::post('camps/{camp}/days', [CampDayController::class, 'store'])->name('days.store');
@@ -66,6 +68,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('libraries/{library}', [ActivityLibraryController::class, 'destroy'])->name('libraries.destroy');
     Route::post('libraries/{library}/members', [ActivityLibraryController::class, 'storeMember'])->name('libraries.members.store');
     Route::delete('libraries/{library}/members/{user}', [ActivityLibraryController::class, 'destroyMember'])->name('libraries.members.destroy');
+
+    // Activity categories (user-defined tags, scoped to a library)
+    Route::post('libraries/{library}/categories', [ActivityCategoryController::class, 'store'])->name('categories.store');
+    Route::put('categories/{category}', [ActivityCategoryController::class, 'update'])->name('categories.update');
+    Route::delete('categories/{category}', [ActivityCategoryController::class, 'destroy'])->name('categories.destroy');
 });
 
 require __DIR__.'/settings.php';

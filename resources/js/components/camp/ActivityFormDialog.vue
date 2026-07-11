@@ -22,13 +22,14 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import InputError from '@/components/InputError.vue';
-import { CATEGORIES, categoryColor } from '@/lib/campColors';
-import type { Activity } from '@/types/camp';
+import { categoryById, colorStyle, COLOR_NAMES } from '@/lib/campColors';
+import type { Activity, ActivityCategory } from '@/types/camp';
 
 const props = defineProps<{
     open: boolean;
     activity?: Activity | null;
     libraryId?: number | null;
+    categories: ActivityCategory[];
 }>();
 
 const emit = defineEmits<{
@@ -38,29 +39,27 @@ const emit = defineEmits<{
 
 const form = useForm({
     activity_library_id: null as number | null,
+    activity_category_id: null as number | null,
     name: '',
-    category: 'game',
     description: '',
     default_duration: 60,
-    color: 'emerald' as string | null,
+    color: 'emerald' as string,
     materials: '',
 });
 
 watch(
     () => props.open,
     (open) => {
-        if (!open) {
-            return;
-        }
+        if (!open) return;
         const a = props.activity;
         form.clearErrors();
         form.defaults({
             activity_library_id: props.libraryId ?? null,
+            activity_category_id: a?.category_id ?? null,
             name: a?.name ?? '',
-            category: a?.category ?? 'game',
             description: a?.description ?? '',
             default_duration: a?.default_duration ?? 60,
-            color: a?.color ?? categoryColor(a?.category ?? 'game'),
+            color: a?.color ?? 'emerald',
             materials: a?.materials ?? '',
         });
         form.reset();
@@ -68,9 +67,12 @@ watch(
 );
 
 function onCategoryChange(value: string) {
-    form.category = value;
+    const id = value === 'none' ? null : Number(value);
+    form.activity_category_id = id;
+    // Adopt the category's colour when creating a fresh activity for convenience.
     if (!props.activity) {
-        form.color = categoryColor(value);
+        const cat = categoryById(props.categories, id);
+        if (cat?.color) form.color = cat.color;
     }
 }
 
@@ -82,7 +84,6 @@ function submit() {
             emit('update:open', false);
         },
     };
-
     if (props.activity) {
         form.put(updateActivity(props.activity.id).url, options);
     } else {
@@ -110,30 +111,47 @@ function submit() {
 
                 <div class="grid grid-cols-2 gap-4">
                     <div class="grid gap-2">
-                        <Label>Kategória</Label>
-                        <Select :model-value="form.category" @update:model-value="onCategoryChange($event as string)">
+                        <Label>Kategória (tag)</Label>
+                        <Select
+                            :model-value="form.activity_category_id === null ? 'none' : String(form.activity_category_id)"
+                            @update:model-value="onCategoryChange($event as string)"
+                        >
                             <SelectTrigger>
-                                <SelectValue placeholder="Vyber kategóriu" />
+                                <SelectValue placeholder="Bez kategórie" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem v-for="c in CATEGORIES" :key="c.value" :value="c.value">
-                                    {{ c.label }}
+                                <SelectItem value="none">Bez kategórie</SelectItem>
+                                <SelectItem v-for="c in categories" :key="c.id" :value="String(c.id)">
+                                    <span class="flex items-center gap-2">
+                                        <span class="size-2.5 rounded-full" :class="colorStyle(c.color).dot" />
+                                        {{ c.name }}
+                                    </span>
                                 </SelectItem>
                             </SelectContent>
                         </Select>
-                        <InputError :message="form.errors.category" />
+                        <InputError :message="form.errors.activity_category_id" />
                     </div>
                     <div class="grid gap-2">
                         <Label for="activity-duration">Dĺžka (min)</Label>
-                        <Input
-                            id="activity-duration"
-                            v-model="form.default_duration"
-                            type="number"
-                            min="5"
-                            max="1440"
-                        />
+                        <Input id="activity-duration" v-model="form.default_duration" type="number" min="5" max="1440" />
                         <InputError :message="form.errors.default_duration" />
                     </div>
+                </div>
+
+                <div class="grid gap-2">
+                    <Label>Farba na časovej osi</Label>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button
+                            v-for="c in COLOR_NAMES"
+                            :key="c"
+                            type="button"
+                            class="size-6 rounded-full border-2 transition"
+                            :class="[colorStyle(c).dot, form.color === c ? 'border-foreground ring-2 ring-ring/40' : 'border-transparent']"
+                            :title="c"
+                            @click="form.color = c"
+                        />
+                    </div>
+                    <InputError :message="form.errors.color" />
                 </div>
 
                 <div class="grid gap-2">

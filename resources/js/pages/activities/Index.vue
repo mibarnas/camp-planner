@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { Crown, Library, Pencil, Plus, Settings2, Trash2, Users } from '@lucide/vue';
+import { Crown, Library, Pencil, Plus, Settings2, Tag, Trash2, Users, X } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import ActivityFormDialog from '@/components/camp/ActivityFormDialog.vue';
 import Heading from '@/components/Heading.vue';
@@ -28,14 +28,16 @@ import InputError from '@/components/InputError.vue';
 import { destroy as destroyActivity, index as activitiesIndex } from '@/routes/activities';
 import { store as storeLibrary, update as updateLibrary, destroy as destroyLibrary } from '@/routes/libraries';
 import { store as storeLibraryMember, destroy as destroyLibraryMember } from '@/routes/libraries/members';
-import { CATEGORIES, categoryColor, categoryLabel, colorStyle } from '@/lib/campColors';
-import type { Activity, ActivityLibrary, LibraryMember } from '@/types/camp';
+import { store as storeCategory, update as updateCategory, destroy as destroyCategory } from '@/routes/categories';
+import { categoryById, colorStyle, COLOR_NAMES } from '@/lib/campColors';
+import type { Activity, ActivityCategory, ActivityLibrary, LibraryMember } from '@/types/camp';
 
 const props = defineProps<{
     libraries: ActivityLibrary[];
     selectedLibraryId: number | null;
     activities: Activity[];
     members: LibraryMember[];
+    categories: ActivityCategory[];
 }>();
 
 defineOptions({
@@ -55,16 +57,18 @@ function switchLibrary(id: string) {
 // --- Activity CRUD ---
 const dialogOpen = ref(false);
 const editing = ref<Activity | null>(null);
-const activeCategory = ref<string>('all');
+const activeCategory = ref<number | 'all' | 'none'>('all');
 
 const filtered = computed(() => {
     if (activeCategory.value === 'all') return props.activities;
-    return props.activities.filter((a) => a.category === activeCategory.value);
+    if (activeCategory.value === 'none') return props.activities.filter((a) => a.category_id === null);
+    return props.activities.filter((a) => a.category_id === activeCategory.value);
 });
 
 const usedCategories = computed(() =>
-    CATEGORIES.filter((c) => props.activities.some((a) => a.category === c.value)),
+    props.categories.filter((c) => props.activities.some((a) => a.category_id === c.id)),
 );
+const hasUncategorised = computed(() => props.activities.some((a) => a.category_id === null));
 
 function openNew() {
     editing.value = null;
@@ -91,10 +95,12 @@ function submitNewLibrary() {
     });
 }
 
-// --- Library settings (rename, members, delete) ---
+// --- Library settings (rename, members, categories, delete) ---
 const settingsOpen = ref(false);
 const renameForm = useForm({ name: '' });
 const memberForm = useForm({ email: '' });
+const categoryForm = useForm({ name: '', color: 'emerald' as string });
+const editingCategoryId = ref<number | null>(null);
 
 function openSettings() {
     if (!selectedLibrary.value) return;
@@ -102,6 +108,7 @@ function openSettings() {
     renameForm.name = selectedLibrary.value.name;
     memberForm.clearErrors();
     memberForm.reset();
+    resetCategoryForm();
     settingsOpen.value = true;
 }
 function submitRename() {
@@ -127,6 +134,38 @@ function deleteLibrary() {
     if (!selectedLibrary.value) return;
     if (!confirm(`Zmazať databázu „${selectedLibrary.value.name}“ aj so všetkými aktivitami? Táto akcia je nezvratná.`)) return;
     router.delete(destroyLibrary(selectedLibrary.value.id).url);
+}
+
+// --- Category management ---
+function resetCategoryForm() {
+    editingCategoryId.value = null;
+    categoryForm.clearErrors();
+    categoryForm.defaults({ name: '', color: 'emerald' });
+    categoryForm.reset();
+}
+function startEditCategory(cat: ActivityCategory) {
+    editingCategoryId.value = cat.id;
+    categoryForm.clearErrors();
+    categoryForm.defaults({ name: cat.name, color: cat.color ?? 'slate' });
+    categoryForm.reset();
+}
+function submitCategory() {
+    if (!selectedLibrary.value) return;
+    const opts = { preserveScroll: true, onSuccess: () => resetCategoryForm() };
+    if (editingCategoryId.value) {
+        categoryForm.put(updateCategory(editingCategoryId.value).url, opts);
+    } else {
+        categoryForm.post(storeCategory(selectedLibrary.value.id).url, opts);
+    }
+}
+function removeCategory(cat: ActivityCategory) {
+    if (!confirm(`Zmazať kategóriu „${cat.name}“? Aktivity zostanú, len bez kategórie.`)) return;
+    router.delete(destroyCategory(cat.id).url, {
+        preserveScroll: true,
+        onSuccess: () => {
+            if (editingCategoryId.value === cat.id) resetCategoryForm();
+        },
+    });
 }
 </script>
 
@@ -178,12 +217,21 @@ function deleteLibrary() {
                 </button>
                 <button
                     v-for="c in usedCategories"
-                    :key="c.value"
-                    class="rounded-full border px-3 py-1 text-sm transition-colors"
-                    :class="activeCategory === c.value ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'"
-                    @click="activeCategory = c.value"
+                    :key="c.id"
+                    class="flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors"
+                    :class="activeCategory === c.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'"
+                    @click="activeCategory = c.id"
                 >
-                    {{ c.label }}
+                    <span class="size-2.5 rounded-full" :class="colorStyle(c.color).dot" />
+                    {{ c.name }}
+                </button>
+                <button
+                    v-if="hasUncategorised"
+                    class="rounded-full border px-3 py-1 text-sm transition-colors"
+                    :class="activeCategory === 'none' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'"
+                    @click="activeCategory = 'none'"
+                >
+                    Bez kategórie
                 </button>
                 <span class="ml-auto flex items-center gap-1 text-sm text-muted-foreground">
                     <Users class="size-4" /> {{ members.length }} členov
@@ -195,7 +243,7 @@ function deleteLibrary() {
                     <CardContent class="flex flex-col gap-2 p-4">
                         <div class="flex items-start justify-between gap-2">
                             <div class="flex items-center gap-2">
-                                <span class="size-3 rounded-full" :class="colorStyle(activity.color ?? categoryColor(activity.category)).dot" />
+                                <span class="size-3 rounded-full" :class="colorStyle(activity.color).dot" />
                                 <h3 class="leading-tight font-semibold">{{ activity.name }}</h3>
                             </div>
                             <div class="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -208,8 +256,12 @@ function deleteLibrary() {
                             </div>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary" :class="colorStyle(activity.color ?? categoryColor(activity.category)).chip">
-                                {{ categoryLabel(activity.category) }}
+                            <Badge
+                                v-if="categoryById(categories, activity.category_id)"
+                                variant="secondary"
+                                :class="colorStyle(categoryById(categories, activity.category_id)!.color).chip"
+                            >
+                                {{ categoryById(categories, activity.category_id)!.name }}
                             </Badge>
                             <span class="text-xs text-muted-foreground">{{ activity.default_duration }} min</span>
                         </div>
@@ -240,7 +292,12 @@ function deleteLibrary() {
         </div>
     </div>
 
-    <ActivityFormDialog v-model:open="dialogOpen" :activity="editing" :library-id="selectedLibraryId" />
+    <ActivityFormDialog
+        v-model:open="dialogOpen"
+        :activity="editing"
+        :library-id="selectedLibraryId"
+        :categories="categories"
+    />
 
     <!-- New library -->
     <Dialog v-model:open="newLibraryOpen">
@@ -266,53 +323,106 @@ function deleteLibrary() {
         <DialogContent class="sm:max-w-lg">
             <DialogHeader>
                 <DialogTitle>{{ selectedLibrary?.name }}</DialogTitle>
-                <DialogDescription>Členovia a nastavenia databázy aktivít.</DialogDescription>
+                <DialogDescription>Kategórie, členovia a nastavenia databázy aktivít.</DialogDescription>
             </DialogHeader>
 
-            <form v-if="selectedLibrary?.is_owner" class="flex items-end gap-2" @submit.prevent="submitRename">
-                <div class="grid flex-1 gap-2">
-                    <Label for="lib-rename">Názov</Label>
-                    <Input id="lib-rename" v-model="renameForm.name" />
-                    <InputError :message="renameForm.errors.name" />
-                </div>
-                <Button type="submit" variant="outline" :disabled="renameForm.processing">Premenovať</Button>
-            </form>
-
-            <form v-if="selectedLibrary?.is_owner" class="flex items-end gap-2" @submit.prevent="submitMember">
-                <div class="grid flex-1 gap-2">
-                    <Label for="lib-member-email">Pridať člena (e-mail existujúceho účtu)</Label>
-                    <Input id="lib-member-email" v-model="memberForm.email" type="email" placeholder="animator@farnost.sk" />
-                    <InputError :message="memberForm.errors.email" />
-                </div>
-                <Button type="submit" :disabled="memberForm.processing">Pridať</Button>
-            </form>
-
-            <div class="grid gap-2">
-                <p class="text-sm font-medium text-muted-foreground">Členovia ({{ members.length }})</p>
-                <div
-                    v-for="member in members"
-                    :key="member.id"
-                    class="flex items-center justify-between gap-2 rounded-lg border p-2.5"
-                >
-                    <div class="min-w-0">
-                        <p class="flex items-center gap-1.5 truncate text-sm font-medium">
-                            {{ member.name }}
-                            <Crown v-if="member.role === 'owner'" class="size-3.5 text-amber-500" />
-                        </p>
-                        <p class="truncate text-xs text-muted-foreground">{{ member.email }}</p>
+            <div class="grid max-h-[65vh] gap-5 overflow-y-auto px-1">
+                <form v-if="selectedLibrary?.is_owner" class="flex items-end gap-2" @submit.prevent="submitRename">
+                    <div class="grid flex-1 gap-2">
+                        <Label for="lib-rename">Názov</Label>
+                        <Input id="lib-rename" v-model="renameForm.name" />
+                        <InputError :message="renameForm.errors.name" />
                     </div>
-                    <Button
-                        v-if="selectedLibrary?.is_owner && member.role !== 'owner'"
-                        variant="ghost"
-                        size="icon-sm"
-                        @click="removeMember(member)"
-                    >
-                        <Trash2 class="text-destructive" />
-                    </Button>
+                    <Button type="submit" variant="outline" :disabled="renameForm.processing">Premenovať</Button>
+                </form>
+
+                <!-- Categories (tags) -->
+                <div class="grid gap-2">
+                    <p class="flex items-center gap-1.5 text-sm font-medium">
+                        <Tag class="size-4" /> Kategórie ({{ categories.length }})
+                    </p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <span
+                            v-for="c in categories"
+                            :key="c.id"
+                            class="group/cat flex items-center gap-1.5 rounded-full border py-1 pr-1 pl-2.5 text-sm"
+                            :class="editingCategoryId === c.id ? 'border-primary' : ''"
+                        >
+                            <span class="size-2.5 rounded-full" :class="colorStyle(c.color).dot" />
+                            {{ c.name }}
+                            <button class="rounded-full p-0.5 hover:bg-accent" title="Upraviť" @click="startEditCategory(c)">
+                                <Pencil class="size-3" />
+                            </button>
+                            <button class="rounded-full p-0.5 hover:bg-accent" title="Zmazať" @click="removeCategory(c)">
+                                <X class="size-3 text-destructive" />
+                            </button>
+                        </span>
+                        <span v-if="!categories.length" class="text-sm text-muted-foreground">Zatiaľ žiadne kategórie.</span>
+                    </div>
+
+                    <form class="mt-1 flex flex-wrap items-end gap-2 rounded-lg border bg-muted/30 p-2.5" @submit.prevent="submitCategory">
+                        <div class="grid flex-1 gap-1">
+                            <Label for="cat-name" class="text-xs">{{ editingCategoryId ? 'Upraviť kategóriu' : 'Nová kategória' }}</Label>
+                            <Input id="cat-name" v-model="categoryForm.name" placeholder="Napr. Hra" class="h-8" required />
+                        </div>
+                        <div class="flex flex-wrap gap-1">
+                            <button
+                                v-for="col in COLOR_NAMES"
+                                :key="col"
+                                type="button"
+                                class="size-5 rounded-full border-2 transition"
+                                :class="[colorStyle(col).dot, categoryForm.color === col ? 'border-foreground' : 'border-transparent']"
+                                :title="col"
+                                @click="categoryForm.color = col"
+                            />
+                        </div>
+                        <div class="flex gap-1">
+                            <Button type="submit" size="sm" :disabled="categoryForm.processing">
+                                {{ editingCategoryId ? 'Uložiť' : 'Pridať' }}
+                            </Button>
+                            <Button v-if="editingCategoryId" type="button" size="sm" variant="outline" @click="resetCategoryForm">
+                                Nová
+                            </Button>
+                        </div>
+                        <InputError class="w-full" :message="categoryForm.errors.name" />
+                    </form>
                 </div>
-                <p class="text-xs text-muted-foreground">
-                    Vedúci prepojených táborov sa pridávajú automaticky.
-                </p>
+
+                <!-- Members -->
+                <div class="grid gap-2">
+                    <p class="flex items-center gap-1.5 text-sm font-medium">
+                        <Users class="size-4" /> Členovia ({{ members.length }})
+                    </p>
+                    <form v-if="selectedLibrary?.is_owner" class="flex items-end gap-2" @submit.prevent="submitMember">
+                        <div class="grid flex-1 gap-1">
+                            <Input v-model="memberForm.email" type="email" placeholder="animator@farnost.sk" class="h-8" />
+                            <InputError :message="memberForm.errors.email" />
+                        </div>
+                        <Button type="submit" size="sm" :disabled="memberForm.processing">Pridať</Button>
+                    </form>
+                    <div
+                        v-for="member in members"
+                        :key="member.id"
+                        class="flex items-center justify-between gap-2 rounded-lg border p-2.5"
+                    >
+                        <div class="min-w-0">
+                            <p class="flex items-center gap-1.5 truncate text-sm font-medium">
+                                {{ member.name }}
+                                <Crown v-if="member.role === 'owner'" class="size-3.5 text-amber-500" />
+                            </p>
+                            <p class="truncate text-xs text-muted-foreground">{{ member.email }}</p>
+                        </div>
+                        <Button
+                            v-if="selectedLibrary?.is_owner && member.role !== 'owner'"
+                            variant="ghost"
+                            size="icon-sm"
+                            @click="removeMember(member)"
+                        >
+                            <Trash2 class="text-destructive" />
+                        </Button>
+                    </div>
+                    <p class="text-xs text-muted-foreground">Vedúci prepojených táborov sa pridávajú automaticky.</p>
+                </div>
             </div>
 
             <DialogFooter v-if="selectedLibrary?.is_owner" class="sm:justify-start">

@@ -24,7 +24,6 @@ import {
     dayBounds,
     durationLabel,
     minToTime,
-    overflowMinutes,
     timeToMin,
 } from '@/lib/timeline';
 import type { CampDay, ProgramEntry, TimeSlot } from '@/types/camp';
@@ -110,7 +109,9 @@ const trackWidth = computed(() => totalMin.value * pxPerMin.value);
 const hourTicks = computed(() => {
     const ticks: number[] = [];
     const first = Math.ceil(bounds.value.start / 60) * 60;
-    for (let m = first; m <= bounds.value.end; m += 60) ticks.push(m);
+    // Stop strictly before the end so a boundary that lands exactly on the hour
+    // (e.g. last block ends 16:00) doesn't leave a stray label at the edge.
+    for (let m = first; m < bounds.value.end; m += 60) ticks.push(m);
     return ticks;
 });
 
@@ -521,14 +522,7 @@ function onTrackClick(e: MouseEvent, day: CampDay) {
                             :key="item.entry.id"
                             data-card
                             class="absolute flex cursor-grab flex-col overflow-hidden rounded-md border-l-4 border shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing"
-                            :class="[
-                                colorStyle(cardColor(item.entry)).cell,
-                                isSelected(item.entry)
-                                    ? 'ring-2 ring-primary'
-                                    : overflowMinutes(item.entry, slots) > 0
-                                      ? 'ring-1 ring-red-400 dark:ring-red-500'
-                                      : '',
-                            ]"
+                            :class="[colorStyle(cardColor(item.entry)).cell, isSelected(item.entry) ? 'ring-2 ring-primary' : '']"
                             :style="{
                                 left: xFor(timeToMin(item.entry.start_time)) + 'px',
                                 width: Math.max(24, wFor(item.entry.duration) - 2) + 'px',
@@ -571,15 +565,6 @@ function onTrackClick(e: MouseEvent, day: CampDay) {
                                 <User class="size-2.5 shrink-0" />
                                 <span class="truncate">{{ item.entry.responsible }}</span>
                             </span>
-
-                            <div
-                                v-if="overflowMinutes(item.entry, slots) > 0"
-                                class="pointer-events-none absolute top-0 bottom-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(239,68,68,0.35)_4px,rgba(239,68,68,0.35)_8px)]"
-                                :style="{
-                                    left: wFor(item.entry.duration - overflowMinutes(item.entry, slots)) + 'px',
-                                    right: '0px',
-                                }"
-                            />
 
                             <div
                                 data-resize

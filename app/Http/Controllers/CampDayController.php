@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Camp;
 use App\Models\CampDay;
+use App\Support\NameDays;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -19,7 +20,10 @@ class CampDayController extends Controller
 
         $camp->days()->firstOrCreate(
             ['date' => $data['date']],
-            ['position' => $camp->days()->max('position') + 1],
+            [
+                'position' => $camp->days()->max('position') + 1,
+                'name_days' => NameDays::for($data['date']),
+            ],
         );
 
         return back()->with('toast', ['type' => 'success', 'message' => __('Day added.')]);

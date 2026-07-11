@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { router, useForm } from '@inertiajs/vue3';
-import { Check, Clock, PenLine, Search, Trash2 } from '@lucide/vue';
+import { BookmarkPlus, Check, Clock, PenLine, Search, Trash2 } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import { destroy as destroyEntry, store as storeEntry, update as updateEntry } from '@/routes/entries';
+import { store as storeActivity } from '@/routes/activities';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,15 +18,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import InputError from '@/components/InputError.vue';
-import { CATEGORIES, categoryColor, categoryLabel, colorStyle } from '@/lib/campColors';
+import { categoryById, colorStyle } from '@/lib/campColors';
 import { durationLabel, minToTime, timeToMin } from '@/lib/timeline';
-import type { Activity, CampDay, ProgramEntry } from '@/types/camp';
+import type { Activity, ActivityCategory, ActivityLibraryRef, CampDay, ProgramEntry } from '@/types/camp';
 
 const props = defineProps<{
     open: boolean;
     day: CampDay | null;
     entry: ProgramEntry | null;
     activities: Activity[];
+    categories: ActivityCategory[];
+    library: ActivityLibraryRef | null;
     startMin?: number;
 }>();
 
@@ -46,17 +49,17 @@ const form = useForm({
 // --- Picker state ---
 const mode = ref<'library' | 'custom'>('library');
 const search = ref('');
-const categoryFilter = ref<string>('all');
+const categoryFilter = ref<number | 'all'>('all');
 
 const presentCategories = computed(() =>
-    CATEGORIES.filter((c) => props.activities.some((a) => a.category === c.value)),
+    props.categories.filter((c) => props.activities.some((a) => a.category_id === c.id)),
 );
 
 const filteredActivities = computed(() => {
     const q = search.value.trim().toLowerCase();
     return props.activities.filter(
         (a) =>
-            (categoryFilter.value === 'all' || a.category === categoryFilter.value) &&
+            (categoryFilter.value === 'all' || a.category_id === categoryFilter.value) &&
             (!q || a.name.toLowerCase().includes(q) || (a.description ?? '').toLowerCase().includes(q)),
     );
 });
@@ -129,6 +132,43 @@ function remove() {
         onSuccess: () => emit('update:open', false),
     });
 }
+
+// Save this program cell as a reusable activity in the camp's database.
+const savingToLibrary = ref(false);
+const savedToLibrary = ref(false);
+const canSaveToLibrary = computed(
+    () => !!props.library && !form.activity_id && form.title.trim().length > 0,
+);
+function saveToLibrary() {
+    if (!props.library || !canSaveToLibrary.value) return;
+    router.post(
+        storeActivity().url,
+        {
+            activity_library_id: props.library.id,
+            activity_category_id: null,
+            name: form.title,
+            description: form.description,
+            default_duration: form.duration,
+            color: 'emerald',
+            materials: form.materials,
+        },
+        {
+            preserveScroll: true,
+            preserveState: true,
+            onStart: () => (savingToLibrary.value = true),
+            onSuccess: () => (savedToLibrary.value = true),
+            onFinish: () => (savingToLibrary.value = false),
+        },
+    );
+}
+
+// Reset the "saved" flag whenever the dialog reopens.
+watch(
+    () => props.open,
+    (open) => {
+        if (open) savedToLibrary.value = false;
+    },
+);
 </script>
 
 <template>
@@ -180,13 +220,14 @@ function remove() {
                         </button>
                         <button
                             v-for="c in presentCategories"
-                            :key="c.value"
+                            :key="c.id"
                             type="button"
-                            class="rounded-full border px-2.5 py-0.5 text-xs transition-colors"
-                            :class="categoryFilter === c.value ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'"
-                            @click="categoryFilter = c.value"
+                            class="flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors"
+                            :class="categoryFilter === c.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'"
+                            @click="categoryFilter = c.id"
                         >
-                            {{ c.label }}
+                            <span class="size-2 rounded-full" :class="colorStyle(c.color).dot" />
+                            {{ c.name }}
                         </button>
                     </div>
 
@@ -206,12 +247,17 @@ function remove() {
                                 <Check class="size-3" />
                             </span>
                             <span class="flex items-center gap-1.5 pr-5">
-                                <span class="size-2.5 shrink-0 rounded-full" :class="colorStyle(a.color ?? categoryColor(a.category)).dot" />
+                                <span class="size-2.5 shrink-0 rounded-full" :class="colorStyle(a.color).dot" />
                                 <span class="truncate text-sm font-medium">{{ a.name }}</span>
                             </span>
                             <span class="flex items-center gap-2">
-                                <Badge variant="secondary" class="px-1.5 py-0 text-[10px]" :class="colorStyle(a.color ?? categoryColor(a.category)).chip">
-                                    {{ categoryLabel(a.category) }}
+                                <Badge
+                                    v-if="categoryById(categories, a.category_id)"
+                                    variant="secondary"
+                                    class="px-1.5 py-0 text-[10px]"
+                                    :class="colorStyle(categoryById(categories, a.category_id)!.color).chip"
+                                >
+                                    {{ categoryById(categories, a.category_id)!.name }}
                                 </Badge>
                                 <span class="flex items-center gap-0.5 text-[11px] text-muted-foreground">
                                     <Clock class="size-3" /> {{ durationLabel(a.default_duration) }}
@@ -272,6 +318,19 @@ function remove() {
                         <Textarea id="entry-notes" v-model="form.notes" class="min-h-16" placeholder="Interné poznámky k tejto aktivite v programe…" />
                         <InputError :message="form.errors.notes" />
                     </div>
+
+                    <!-- Save this cell as a reusable library activity -->
+                    <Button
+                        v-if="canSaveToLibrary"
+                        type="button"
+                        variant="outline"
+                        class="w-fit"
+                        :disabled="savingToLibrary || savedToLibrary"
+                        @click="saveToLibrary"
+                    >
+                        <component :is="savedToLibrary ? Check : BookmarkPlus" />
+                        {{ savedToLibrary ? 'Uložené do databázy' : 'Uložiť do databázy aktivít' }}
+                    </Button>
                 </form>
             </div>
 

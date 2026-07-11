@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Activity;
+use App\Models\ActivityLibrary;
 use App\Models\Camp;
 use App\Models\CampDay;
 use App\Models\User;
@@ -20,46 +20,63 @@ class DemoCampSeeder extends Seeder
         $user = User::query()->orderBy('id')->first()
             ?? User::factory()->create(['name' => 'Vedúci tábora', 'email' => 'veduci@farnost.sk']);
 
-        // Shared activity library ---------------------------------------------
-        $library = [
-            ['Ranné chvály', 'spiritual', 'sky', 30, 'Spoločný ranný modlitbový začiatok dňa.'],
-            ['Scénka', 'skit', 'violet', 15, 'Krátka divadelná scénka rozvíjajúca príbeh tábora.'],
-            ['Zoznamovačky', 'game', 'emerald', 180, 'Vymyslieť názov skupiny a erb, pokrik, rozdelenie do skupiniek.'],
-            ['Stanoviská', 'station', 'teal', 120, 'Putovanie skupiniek po stanoviskách s úlohami.'],
-            ['Vodné hry', 'game', 'cyan', 120, 'Mrazené tričko, prenášanie vody s hubkou, vodné balóny.'],
-            ['Olympiáda', 'sport', 'lime', 120, 'Porovnanie síl skupiniek v hlavolamoch a pohybových aktivitách.'],
-            ['Tvorenie', 'craft', 'orange', 90, 'Výroba erbov, škrabošiek a rekvizít.'],
-            ['Slovko', 'spiritual', 'rose', 30, 'Krátke duchovné zamyslenie na záver programu.'],
-            ['Bomba!', 'game', 'emerald', 60, 'Pohybová hra s príkazmi: bomba, snajper, potopa, horí, vtáky.'],
-            ['Karneval', 'game', 'fuchsia', 120, 'Záverečný karneval so škraboškami a hrou o elektrinu.'],
-            ['Obed', 'meal', 'amber', 30, 'Spoločný obed.'],
-            ['Odpočinok', 'meal', 'slate', 60, 'Popoludňajší oddych po obede.'],
-            ['Upratovanie', 'other', 'teal', 30, 'Upratovanie a príprava materiálu na ďalší deň.'],
-        ];
-
-        foreach ($library as [$name, $category, $color, $duration, $desc]) {
-            Activity::firstOrCreate(
-                ['name' => $name, 'category' => $category],
-                ['color' => $color, 'default_duration' => $duration, 'description' => $desc, 'created_by' => $user->id],
-            );
-        }
-
         if (Camp::where('name', 'Plachta – 1. turnus')->exists()) {
             $this->command->info('Demo camp already exists, skipping.');
 
             return;
         }
 
+        // Activity library + its categories (tags) ----------------------------
+        $library = ActivityLibrary::firstOrCreate(
+            ['owner_id' => $user->id, 'name' => 'Knižnica aktivít'],
+        );
+        $library->members()->syncWithoutDetaching([$user->id => ['role' => 'owner']]);
+        if ($library->categories()->count() === 0) {
+            $library->seedDefaultCategories();
+        }
+        $categoryId = $library->categories()->pluck('id', 'name');
+
+        // [name, category-name, color, duration, description]
+        $activityDefs = [
+            ['Ranné chvály', 'Duchovné', 'sky', 30, 'Spoločný ranný modlitbový začiatok dňa.'],
+            ['Scénka', 'Scénka', 'violet', 15, 'Krátka divadelná scénka rozvíjajúca príbeh tábora.'],
+            ['Zoznamovačky', 'Hra', 'emerald', 180, 'Vymyslieť názov skupiny a erb, pokrik, rozdelenie do skupiniek.'],
+            ['Stanoviská', 'Stanoviská', 'teal', 120, 'Putovanie skupiniek po stanoviskách s úlohami.'],
+            ['Vodné hry', 'Hra', 'cyan', 120, 'Mrazené tričko, prenášanie vody s hubkou, vodné balóny.'],
+            ['Olympiáda', 'Šport', 'lime', 120, 'Porovnanie síl skupiniek v hlavolamoch a pohybových aktivitách.'],
+            ['Tvorenie', 'Tvorenie', 'orange', 90, 'Výroba erbov, škrabošiek a rekvizít.'],
+            ['Slovko', 'Duchovné', 'rose', 30, 'Krátke duchovné zamyslenie na záver programu.'],
+            ['Bomba!', 'Hra', 'emerald', 60, 'Pohybová hra s príkazmi: bomba, snajper, potopa, horí, vtáky.'],
+            ['Karneval', 'Hra', 'fuchsia', 120, 'Záverečný karneval so škraboškami a hrou o elektrinu.'],
+            ['Obed', 'Jedlo / oddych', 'amber', 30, 'Spoločný obed.'],
+            ['Odpočinok', 'Jedlo / oddych', 'slate', 60, 'Popoludňajší oddych po obede.'],
+            ['Upratovanie', 'Iné', 'teal', 30, 'Upratovanie a príprava materiálu na ďalší deň.'],
+        ];
+
+        foreach ($activityDefs as [$name, $category, $color, $duration, $desc]) {
+            $library->activities()->firstOrCreate(
+                ['name' => $name],
+                [
+                    'activity_category_id' => $categoryId[$category] ?? null,
+                    'color' => $color,
+                    'default_duration' => $duration,
+                    'description' => $desc,
+                    'created_by' => $user->id,
+                ],
+            );
+        }
+
         // Camp ----------------------------------------------------------------
         $camp = Camp::create([
             'owner_id' => $user->id,
+            'activity_library_id' => $library->id,
             'name' => 'Plachta – 1. turnus',
             'year' => 2026,
             'description' => 'Letný denný tábor v štýle filmu Rio. Deti prichádzajú 8:00–8:30 a odchádzajú 16:00–16:30.',
             'start_date' => '2026-07-06',
             'end_date' => '2026-07-10',
         ]);
-        $camp->members()->attach($user->id, ['role' => 'owner']);
+        $camp->addMember($user, 'owner');
 
         // Time skeleton (columns) --------------------------------------------
         $slotDefs = [
@@ -108,7 +125,7 @@ class DemoCampSeeder extends Seeder
         $this->setDayMeta($days['2026-07-10'], ['name_days' => 'Amália, Eli', 'birthdays' => 'Mišo B.', 'materials' => 'plechovky, poháriky, kľúč, škrabošky, príprava na karneval']);
 
         // Program (cells) -----------------------------------------------------
-        $activityByName = Activity::pluck('id', 'name');
+        $activityByName = $library->activities()->pluck('id', 'name');
 
         // date => [slotKey => [title, description, responsible, activityName]]
         $program = [

@@ -109,24 +109,14 @@ export function colorStyle(name: string | null | undefined): ColorStyle {
     return COLORS[name] ?? FALLBACK;
 }
 
-// Activity categories with Slovak labels + default colour.
-export const CATEGORIES: { value: string; label: string; color: string }[] = [
-    { value: 'spiritual', label: 'Duchovné', color: 'sky' },
-    { value: 'skit', label: 'Scénka', color: 'violet' },
-    { value: 'game', label: 'Hra', color: 'emerald' },
-    { value: 'sport', label: 'Šport', color: 'lime' },
-    { value: 'craft', label: 'Tvorenie', color: 'orange' },
-    { value: 'station', label: 'Stanoviská', color: 'teal' },
-    { value: 'educational', label: 'Náučné', color: 'indigo' },
-    { value: 'meal', label: 'Jedlo / oddych', color: 'amber' },
-    { value: 'trip', label: 'Výlet', color: 'fuchsia' },
-    { value: 'other', label: 'Iné', color: 'slate' },
-];
+// User-defined activity categories (tags) come from the backend, scoped to a
+// library. This shape mirrors the serialized `activity_categories` rows.
+export type Category = { id: number; name: string; color: string | null };
 
-export function categoryLabel(value: string | null | undefined): string {
-    return CATEGORIES.find((c) => c.value === value)?.label ?? value ?? '';
-}
-
-export function categoryColor(value: string | null | undefined): string {
-    return CATEGORIES.find((c) => c.value === value)?.color ?? 'slate';
+export function categoryById(
+    categories: Category[],
+    id: number | null | undefined,
+): Category | null {
+    if (id == null) return null;
+    return categories.find((c) => c.id === id) ?? null;
 }

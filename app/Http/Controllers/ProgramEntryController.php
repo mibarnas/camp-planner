@@ -7,6 +7,7 @@ use App\Models\CampDay;
 use App\Models\ProgramEntry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 
 class ProgramEntryController extends Controller
 {
@@ -99,7 +100,7 @@ class ProgramEntryController extends Controller
                 continue;
             }
             $this->authorize('update', $entry->day->camp);
-            $entry->update(\Illuminate\Support\Arr::only($item, ['start_time', 'duration', 'responsible']));
+            $entry->update(Arr::only($item, ['start_time', 'duration', 'responsible']));
         }
 
         return back()->with('toast', ['type' => 'success', 'message' => __('Saved.')]);
