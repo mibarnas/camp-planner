@@ -21,7 +21,8 @@ Route::post('invitations/{token}', [InvitationController::class, 'accept'])
     ->middleware('auth')->name('invitations.accept');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'Dashboard')->name('dashboard');
+    // The camps list is the app's home; keep the name so existing links redirect.
+    Route::redirect('dashboard', '/camps')->name('dashboard');
 
     // Camps
     Route::get('camps', [CampController::class, 'index'])->name('camps.index');
