@@ -42,11 +42,10 @@ onMounted(async () => {
     <Card class="w-full">
         <CardHeader>
             <CardTitle class="flex gap-3">
-                <LockKeyhole class="size-4" />2FA recovery codes
+                <LockKeyhole class="size-4" />Záložné kódy 2FA
             </CardTitle>
             <CardDescription>
-                Recovery codes let you regain access if you lose your 2FA
-                device. Store them in a secure password manager.
+                Záložné kódy ti umožnia obnoviť prístup, ak stratíš 2FA zariadenie. Ulož ich do bezpečného správcu hesiel.
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -58,8 +57,8 @@ onMounted(async () => {
                         :is="isRecoveryCodesVisible ? EyeOff : Eye"
                         class="size-4"
                     />
-                    {{ isRecoveryCodesVisible ? 'Hide' : 'View' }} recovery
-                    codes
+                    {{ isRecoveryCodesVisible ? 'Skryť' : 'Zobraziť' }} záložné
+                    kódy
                 </Button>
 
                 <Form
@@ -75,7 +74,7 @@ onMounted(async () => {
                         type="submit"
                         :disabled="processing"
                     >
-                        <RefreshCw /> Regenerate codes
+                        <RefreshCw /> Vygenerovať nové kódy
                     </Button>
                 </Form>
             </div>
@@ -111,10 +110,7 @@ onMounted(async () => {
                         </div>
                     </div>
                     <p class="text-xs text-muted-foreground select-none">
-                        Each recovery code can be used once to access your
-                        account and will be removed after use. If you need more,
-                        click
-                        <span class="font-bold">Regenerate codes</span> above.
+                        Každý záložný kód použiješ raz na prístup k účtu a potom sa odstráni. Ak potrebuješ ďalšie, klikni vyššie na <span class="font-bold">Vygenerovať nové kódy</span>.
                     </p>
                 </div>
             </div>

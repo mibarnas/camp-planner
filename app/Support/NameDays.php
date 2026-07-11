@@ -26,7 +26,7 @@ class NameDays
         $path = resource_path('data/sk-meniny.csv');
 
         if (is_file($path) && ($handle = fopen($path, 'r')) !== false) {
-            while (($row = fgetcsv($handle)) !== false) {
+            while (($row = fgetcsv($handle, escape: '')) !== false) {
                 if (count($row) < 2) {
                     continue;
                 }

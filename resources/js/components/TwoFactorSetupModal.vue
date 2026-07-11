@@ -46,26 +46,26 @@ const pinInputContainerRef = useTemplateRef('pinInputContainerRef');
 const modalConfig = computed<TwoFactorConfigContent>(() => {
     if (props.twoFactorEnabled) {
         return {
-            title: 'Two-factor authentication enabled',
+            title: 'Dvojfaktorové overenie zapnuté',
             description:
-                'Two-factor authentication is now enabled. Scan the QR code or enter the setup key in your authenticator app.',
-            buttonText: 'Close',
+                'Dvojfaktorové overenie je zapnuté. Naskenuj QR kód alebo zadaj kľúč v autentifikačnej aplikácii.',
+            buttonText: 'Zavrieť',
         };
     }
 
     if (showVerificationStep.value) {
         return {
-            title: 'Verify authentication code',
-            description: 'Enter the 6-digit code from your authenticator app',
-            buttonText: 'Continue',
+            title: 'Over overovací kód',
+            description: 'Zadaj 6-miestny kód z autentifikačnej aplikácie',
+            buttonText: 'Pokračovať',
         };
     }
 
     return {
-        title: 'Enable two-factor authentication',
+        title: 'Zapnúť dvojfaktorové overenie',
         description:
-            'To finish enabling two-factor authentication, scan the QR code or enter the setup key in your authenticator app',
-        buttonText: 'Continue',
+            'Pre dokončenie naskenuj QR kód alebo zadaj kľúč v autentifikačnej aplikácii',
+        buttonText: 'Pokračovať',
     };
 });
 
@@ -197,7 +197,7 @@ watch(
                                 class="absolute inset-0 top-1/2 h-px w-full bg-border"
                             />
                             <span class="relative bg-card px-2 py-1"
-                                >or, enter the code manually</span
+                                >alebo zadaj kód ručne</span
                             >
                         </div>
 

@@ -8,9 +8,8 @@ import { send } from '@/routes/verification';
 
 defineOptions({
     layout: {
-        title: 'Email verification',
-        description:
-            'Please verify your email address by clicking on the link we just emailed to you.',
+        title: 'Overenie e-mailu',
+        description: 'Over si e-mailovú adresu kliknutím na odkaz, ktorý sme ti práve poslali.',
     },
 });
 
@@ -20,14 +19,13 @@ defineProps<{
 </script>
 
 <template>
-    <Head title="Email verification" />
+    <Head title="Overenie e-mailu" />
 
     <div
         v-if="status === 'verification-link-sent'"
         class="mb-4 text-center text-sm font-medium text-green-600"
     >
-        A new verification link has been sent to the email address you provided
-        during registration.
+        Na e-mail, ktorý si zadal pri registrácii, sme poslali nový overovací odkaz.
     </div>
 
     <Form
@@ -37,11 +35,11 @@ defineProps<{
     >
         <Button :disabled="processing" variant="secondary">
             <Spinner v-if="processing" />
-            Resend verification email
+            Poslať overovací e-mail znova
         </Button>
 
         <TextLink :href="logout()" as="button" class="mx-auto block text-sm">
-            Log out
+            Odhlásiť sa
         </TextLink>
     </Form>
 </template>

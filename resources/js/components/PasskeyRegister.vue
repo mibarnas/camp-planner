@@ -74,12 +74,12 @@ const handleCancel = () => {
         class="space-y-4 rounded-lg border border-border bg-muted/50 p-4"
     >
         <div class="grid gap-2">
-            <Label for="passkey-name">Passkey name</Label>
+            <Label for="passkey-name">Názov kľúča</Label>
             <Input
                 id="passkey-name"
                 type="text"
                 v-model="name"
-                placeholder="e.g., MacBook Pro, iPhone"
+                placeholder="napr. MacBook Pro, iPhone"
                 class="mt-1 block w-full border-foreground/20"
                 autofocus
             />
@@ -92,7 +92,7 @@ const handleCancel = () => {
 
         <div class="flex gap-2">
             <Button type="submit" :disabled="isLoading || !name.trim()">
-                {{ isLoading ? 'Registering...' : 'Register passkey' }}
+                {{ isLoading ? 'Registrujem…' : 'Zaregistrovať kľúč' }}
             </Button>
             <Button type="button" variant="ghost" @click="handleCancel">
                 Cancel

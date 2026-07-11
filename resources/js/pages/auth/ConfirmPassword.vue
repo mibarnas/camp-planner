@@ -14,24 +14,23 @@ import { store } from '@/routes/password/confirm';
 
 defineOptions({
     layout: {
-        title: 'Confirm password',
-        description:
-            'This is a secure area of the application. Please confirm your password before continuing.',
+        title: 'Potvrdenie hesla',
+        description: 'Toto je zabezpečená časť aplikácie. Pred pokračovaním potvrď svoje heslo.',
     },
 });
 </script>
 
 <template>
-    <Head title="Confirm password" />
+    <Head title="Potvrdenie hesla" />
 
     <PasskeyVerify
         :routes="{
             options: confirmOptions(),
             submit: confirmStore(),
         }"
-        label="Confirm with passkey"
-        loading-label="Confirming..."
-        separator="Or confirm with password"
+        label="Potvrdiť prístupovým kľúčom"
+        loading-label="Potvrdzujem…"
+        separator="Alebo potvrď heslom"
     />
 
     <Form
@@ -41,7 +40,7 @@ defineOptions({
     >
         <div class="space-y-6">
             <div class="grid gap-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">Heslo</Label>
                 <PasswordInput
                     id="password"
                     name="password"
@@ -61,7 +60,7 @@ defineOptions({
                     data-test="confirm-password-button"
                 >
                     <Spinner v-if="processing" />
-                    Confirm password
+                    Potvrdiť heslo
                 </Button>
             </div>
         </div>

@@ -11,8 +11,8 @@ import { email } from '@/routes/password';
 
 defineOptions({
     layout: {
-        title: 'Forgot password',
-        description: 'Enter your email to receive a password reset link',
+        title: 'Zabudnuté heslo',
+        description: 'Zadaj e-mail a pošleme ti odkaz na obnovu hesla',
     },
 });
 
@@ -22,7 +22,7 @@ defineProps<{
 </script>
 
 <template>
-    <Head title="Forgot password" />
+    <Head title="Zabudnuté heslo" />
 
     <div
         v-if="status"
@@ -34,14 +34,14 @@ defineProps<{
     <div class="space-y-6">
         <Form v-bind="email.form()" v-slot="{ errors, processing }">
             <div class="grid gap-2">
-                <Label for="email">Email address</Label>
+                <Label for="email">E-mailová adresa</Label>
                 <Input
                     id="email"
                     type="email"
                     name="email"
                     autocomplete="off"
                     autofocus
-                    placeholder="email@example.com"
+                    placeholder="email@priklad.sk"
                 />
                 <InputError :message="errors.email" />
             </div>
@@ -53,14 +53,14 @@ defineProps<{
                     data-test="email-password-reset-link-button"
                 >
                     <Spinner v-if="processing" />
-                    Email password reset link
+                    Poslať odkaz na obnovu hesla
                 </Button>
             </div>
         </Form>
 
         <div class="space-x-1 text-center text-sm text-muted-foreground">
-            <span>Or, return to</span>
-            <TextLink :href="login()">log in</TextLink>
+            <span>Alebo sa vráť na</span>
+            <TextLink :href="login()">prihlásenie</TextLink>
         </div>
     </div>
 </template>
