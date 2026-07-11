@@ -14,6 +14,7 @@ import {
     X,
 } from '@lucide/vue';
 import { computed, ref } from 'vue';
+import CampAppearanceFields from '@/components/camp/CampAppearanceFields.vue';
 import Heading from '@/components/Heading.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +30,7 @@ import { Textarea } from '@/components/ui/textarea';
 import InputError from '@/components/InputError.vue';
 import { index as campsIndex, store as storeCamp } from '@/routes/camps';
 import { colorStyle, COLOR_NAMES } from '@/lib/campColors';
+import { campIcon } from '@/lib/campIcons';
 import type { ActivityLibraryRef } from '@/types/camp';
 
 type SlotDraft = {
@@ -57,8 +59,11 @@ const currentYear = new Date().getFullYear();
 
 const form = useForm({
     name: '',
+    icon: 'tent',
+    color: 'emerald',
     year: currentYear,
     description: '',
+    location: '',
     start_date: '',
     end_date: '',
     activity_library_id: null as number | null,
@@ -162,8 +167,8 @@ function submit() {
 
     <div class="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-4">
         <div class="flex items-center gap-3">
-            <div class="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Tent class="size-5" />
+            <div class="flex size-10 items-center justify-center rounded-lg" :class="colorStyle(form.color).chip">
+                <component :is="campIcon(form.icon)" class="size-5" />
             </div>
             <Heading title="Nový tábor" description="Sprievodca ťa prevedie nastavením tábora." />
         </div>
@@ -225,6 +230,15 @@ function submit() {
                     <Label for="w-desc">Popis (voliteľné)</Label>
                     <Textarea id="w-desc" v-model="form.description" />
                 </div>
+
+                <div class="border-t pt-4">
+                    <CampAppearanceFields
+                        v-model:icon="form.icon"
+                        v-model:color="form.color"
+                        v-model:location="form.location"
+                    />
+                </div>
+
                 <div v-if="libraries.length" class="grid gap-2">
                     <Label>Databáza aktivít</Label>
                     <Select

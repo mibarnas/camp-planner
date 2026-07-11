@@ -14,8 +14,11 @@ use Illuminate\Support\Carbon;
  * @property int $owner_id
  * @property int|null $activity_library_id
  * @property string $name
+ * @property string $icon
+ * @property string $color
  * @property int $year
  * @property string|null $description
+ * @property string|null $location
  * @property Carbon $start_date
  * @property Carbon $end_date
  * @property Carbon|null $created_at
@@ -30,8 +33,11 @@ class Camp extends Model
         'owner_id',
         'activity_library_id',
         'name',
+        'icon',
+        'color',
         'year',
         'description',
+        'location',
         'start_date',
         'end_date',
     ];

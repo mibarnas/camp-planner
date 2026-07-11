@@ -5,8 +5,11 @@ export type SlotKind = 'fixed' | 'activity';
 export type CampListItem = {
     id: number;
     name: string;
+    icon: string;
+    color: string;
     year: number;
     description: string | null;
+    location: string | null;
     start_date: string | null;
     end_date: string | null;
     days_count: number;
@@ -17,8 +20,11 @@ export type CampListItem = {
 export type Camp = {
     id: number;
     name: string;
+    icon: string;
+    color: string;
     year: number;
     description: string | null;
+    location: string | null;
     start_date: string;
     end_date: string;
     owner_id: number;

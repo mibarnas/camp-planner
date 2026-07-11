@@ -31,8 +31,11 @@ class CampController extends Controller
             ->map(fn (Camp $camp) => [
                 'id' => $camp->id,
                 'name' => $camp->name,
+                'icon' => $camp->icon,
+                'color' => $camp->color,
                 'year' => $camp->year,
                 'description' => $camp->description,
+                'location' => $camp->location,
                 'start_date' => $camp->start_date->toDateString(),
                 'end_date' => $camp->end_date->toDateString(),
                 'days_count' => $camp->days_count,
@@ -67,8 +70,11 @@ class CampController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'icon' => ['nullable', 'string', 'max:40'],
+            'color' => ['nullable', 'string', 'max:20'],
             'year' => ['required', 'integer', 'min:2000', 'max:2100'],
             'description' => ['nullable', 'string'],
+            'location' => ['nullable', 'string', 'max:255'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'activity_library_id' => ['nullable', 'exists:activity_libraries,id'],
@@ -107,8 +113,11 @@ class CampController extends Controller
                 'owner_id' => $user->id,
                 'activity_library_id' => $library->id,
                 'name' => $data['name'],
+                'icon' => $data['icon'] ?? 'tent',
+                'color' => $data['color'] ?? 'emerald',
                 'year' => $data['year'],
                 'description' => $data['description'] ?? null,
+                'location' => $data['location'] ?? null,
                 'start_date' => $data['start_date'],
                 'end_date' => $data['end_date'],
             ]);
@@ -227,8 +236,11 @@ class CampController extends Controller
             'camp' => [
                 'id' => $camp->id,
                 'name' => $camp->name,
+                'icon' => $camp->icon,
+                'color' => $camp->color,
                 'year' => $camp->year,
                 'description' => $camp->description,
+                'location' => $camp->location,
                 'start_date' => $camp->start_date->toDateString(),
                 'end_date' => $camp->end_date->toDateString(),
                 'owner_id' => $camp->owner_id,
@@ -274,8 +286,11 @@ class CampController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'icon' => ['nullable', 'string', 'max:40'],
+            'color' => ['nullable', 'string', 'max:20'],
             'year' => ['required', 'integer', 'min:2000', 'max:2100'],
             'description' => ['nullable', 'string'],
+            'location' => ['nullable', 'string', 'max:255'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
         ]);
@@ -328,8 +343,11 @@ class CampController extends Controller
                 // The duplicate shares the source camp's activity library.
                 'activity_library_id' => $camp->activity_library_id,
                 'name' => $data['name'],
+                'icon' => $camp->icon,
+                'color' => $camp->color,
                 'year' => $data['year'],
                 'description' => $camp->description,
+                'location' => $camp->location,
                 'start_date' => $data['start_date'],
                 'end_date' => $data['end_date'],
             ]);

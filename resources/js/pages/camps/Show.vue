@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
-import { CalendarHeart, Columns3, Copy, Settings, Trash2, Users } from '@lucide/vue';
+import { CalendarHeart, Columns3, Copy, MapPin, Settings, Trash2, Users } from '@lucide/vue';
 import { ref, watch, watchEffect } from 'vue';
+import CampAppearanceFields from '@/components/camp/CampAppearanceFields.vue';
 import DayDialog from '@/components/camp/DayDialog.vue';
 import EntryDialog from '@/components/camp/EntryDialog.vue';
 import MembersDialog from '@/components/camp/MembersDialog.vue';
@@ -24,6 +25,8 @@ import InputError from '@/components/InputError.vue';
 import { index as campsIndex } from '@/routes/camps';
 import { destroy as destroyCamp, duplicate as duplicateCamp, fillNameDays, update as updateCamp } from '@/routes/camps';
 import { bulkDestroy, bulkUpdate, toggle as toggleEntry } from '@/routes/entries';
+import { colorStyle } from '@/lib/campColors';
+import { campIcon } from '@/lib/campIcons';
 import type {
     Activity,
     ActivityCategory,
@@ -136,8 +139,11 @@ function fillNames() {
 const settingsOpen = ref(false);
 const settingsForm = useForm({
     name: props.camp.name,
+    icon: props.camp.icon,
+    color: props.camp.color,
     year: props.camp.year,
     description: props.camp.description ?? '',
+    location: props.camp.location ?? '',
     start_date: props.camp.start_date,
     end_date: props.camp.end_date,
 });
@@ -145,8 +151,11 @@ function openSettings() {
     settingsForm.clearErrors();
     settingsForm.defaults({
         name: props.camp.name,
+        icon: props.camp.icon,
+        color: props.camp.color,
         year: props.camp.year,
         description: props.camp.description ?? '',
+        location: props.camp.location ?? '',
         start_date: props.camp.start_date,
         end_date: props.camp.end_date,
     });
@@ -198,11 +207,17 @@ function submitDuplicate() {
     <div class="flex h-full flex-1 flex-col gap-4 p-4">
         <!-- Header -->
         <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight">{{ camp.name }}</h1>
-                <p class="text-sm text-muted-foreground">
-                    {{ camp.year }} · {{ localDays.length }} dní · {{ members.length }} vedúcich
-                </p>
+            <div class="flex items-center gap-3">
+                <div class="flex size-12 shrink-0 items-center justify-center rounded-xl" :class="colorStyle(camp.color).chip">
+                    <component :is="campIcon(camp.icon)" class="size-6" />
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">{{ camp.name }}</h1>
+                    <p class="text-sm text-muted-foreground">
+                        {{ camp.year }} · {{ localDays.length }} dní · {{ members.length }} vedúcich
+                        <span v-if="camp.location"> · <MapPin class="inline size-3.5" /> {{ camp.location }}</span>
+                    </p>
+                </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 <Button variant="outline" size="sm" @click="slotsOpen = true">
@@ -277,12 +292,19 @@ function submitDuplicate() {
                 <DialogTitle>Nastavenia tábora</DialogTitle>
                 <DialogDescription>Uprav základné údaje alebo zmaž tábor.</DialogDescription>
             </DialogHeader>
-            <form class="grid gap-4" @submit.prevent="submitSettings">
+            <form class="grid max-h-[70vh] gap-4 overflow-y-auto px-1" @submit.prevent="submitSettings">
                 <div class="grid gap-2">
                     <Label for="set-name">Názov</Label>
                     <Input id="set-name" v-model="settingsForm.name" required />
                     <InputError :message="settingsForm.errors.name" />
                 </div>
+
+                <CampAppearanceFields
+                    v-model:icon="settingsForm.icon"
+                    v-model:color="settingsForm.color"
+                    v-model:location="settingsForm.location"
+                />
+
                 <div class="grid grid-cols-3 gap-4">
                     <div class="grid gap-2">
                         <Label for="set-year">Rok</Label>

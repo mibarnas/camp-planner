@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
-import { CalendarDays, Crown, Plus, Tent, Users } from '@lucide/vue';
+import { CalendarDays, Crown, MapPin, Plus, Tent, Users } from '@lucide/vue';
 import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { create as createCamp, show } from '@/routes/camps';
+import { colorStyle } from '@/lib/campColors';
+import { campIcon } from '@/lib/campIcons';
 import type { CampListItem } from '@/types/camp';
 
 defineProps<{ camps: CampListItem[] }>();
@@ -44,8 +46,8 @@ function formatRange(start: string | null, end: string | null): string {
                 <Card class="h-full py-0 transition-colors group-hover:border-primary/50">
                     <CardContent class="flex h-full flex-col gap-3 p-5">
                         <div class="flex items-start justify-between gap-2">
-                            <div class="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                <Tent class="size-5" />
+                            <div class="flex size-10 items-center justify-center rounded-lg" :class="colorStyle(camp.color).chip">
+                                <component :is="campIcon(camp.icon)" class="size-5" />
                             </div>
                             <Badge v-if="camp.role === 'owner'" variant="secondary" class="gap-1">
                                 <Crown class="size-3" /> Vlastník
@@ -55,7 +57,12 @@ function formatRange(start: string | null, end: string | null): string {
 
                         <div>
                             <h3 class="leading-tight font-semibold">{{ camp.name }}</h3>
-                            <p class="text-sm text-muted-foreground">{{ camp.year }}</p>
+                            <p class="flex items-center gap-1.5 text-sm text-muted-foreground">
+                                {{ camp.year }}
+                                <span v-if="camp.location" class="flex items-center gap-1">
+                                    · <MapPin class="size-3.5" /> {{ camp.location }}
+                                </span>
+                            </p>
                         </div>
 
                         <p v-if="camp.description" class="line-clamp-2 text-sm text-muted-foreground">
