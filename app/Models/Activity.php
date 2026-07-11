@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -57,5 +58,15 @@ class Activity extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Program cells across all camps that reference this activity.
+     *
+     * @return HasMany<ProgramEntry, $this>
+     */
+    public function entries(): HasMany
+    {
+        return $this->hasMany(ProgramEntry::class);
     }
 }

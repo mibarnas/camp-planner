@@ -91,6 +91,8 @@ export type Activity = {
     color: string | null;
     materials: string | null;
     creator?: { id: number; name: string } | null;
+    usage_count?: number;
+    created_at?: string | null;
 };
 
 export type CampMember = {

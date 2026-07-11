@@ -30,7 +30,10 @@ class ActivityController extends Controller
 
         if ($selected) {
             $selected->load('members:id,name,email');
-            $activities = $selected->activities()->with('creator:id,name')->get()
+            $activities = $selected->activities()
+                ->with('creator:id,name')
+                ->withCount('entries')
+                ->get()
                 ->map(fn (Activity $a) => [
                     'id' => $a->id,
                     'name' => $a->name,
@@ -40,6 +43,8 @@ class ActivityController extends Controller
                     'color' => $a->color,
                     'materials' => $a->materials,
                     'creator' => $a->creator?->only(['id', 'name']),
+                    'usage_count' => $a->entries_count,
+                    'created_at' => $a->created_at?->toDateString(),
                 ]);
             $members = $selected->members->map(fn ($m) => [
                 'id' => $m->id,
@@ -86,6 +91,20 @@ class ActivityController extends Controller
         $activity->update($this->validateData($request, $activity->library));
 
         return back()->with('toast', ['type' => 'success', 'message' => __('Activity updated.')]);
+    }
+
+    public function duplicate(Activity $activity): RedirectResponse
+    {
+        if ($activity->library) {
+            $this->authorize('update', $activity->library);
+        }
+
+        $activity->replicate()->fill([
+            'name' => $activity->name.' (kópia)',
+            'created_by' => request()->user()->id,
+        ])->save();
+
+        return back()->with('toast', ['type' => 'success', 'message' => __('Activity duplicated.')]);
     }
 
     public function destroy(Activity $activity): RedirectResponse

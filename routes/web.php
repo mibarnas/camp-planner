@@ -59,6 +59,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Activities (library-scoped)
     Route::get('activities', [ActivityController::class, 'index'])->name('activities.index');
     Route::post('activities', [ActivityController::class, 'store'])->name('activities.store');
+    Route::post('activities/{activity}/duplicate', [ActivityController::class, 'duplicate'])->name('activities.duplicate');
     Route::put('activities/{activity}', [ActivityController::class, 'update'])->name('activities.update');
     Route::delete('activities/{activity}', [ActivityController::class, 'destroy'])->name('activities.destroy');
 

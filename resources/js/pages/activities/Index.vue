@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { Crown, Library, Pencil, Plus, Settings2, Tag, Trash2, Users, X } from '@lucide/vue';
+import { Clock, Crown, LayoutList, Library, Package, Pencil, Plus, Settings2, Tag, Trash2, Users, X } from '@lucide/vue';
 import { computed, ref } from 'vue';
+import ActivityDetailDialog from '@/components/camp/ActivityDetailDialog.vue';
 import ActivityFormDialog from '@/components/camp/ActivityFormDialog.vue';
 import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +26,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import InputError from '@/components/InputError.vue';
-import { destroy as destroyActivity, index as activitiesIndex } from '@/routes/activities';
+import { destroy as destroyActivity, duplicate as duplicateActivity, index as activitiesIndex } from '@/routes/activities';
 import { store as storeLibrary, update as updateLibrary, destroy as destroyLibrary } from '@/routes/libraries';
 import { store as storeLibraryMember, destroy as destroyLibraryMember } from '@/routes/libraries/members';
 import { store as storeCategory, update as updateCategory, destroy as destroyCategory } from '@/routes/categories';
@@ -81,6 +82,29 @@ function openEdit(activity: Activity) {
 function remove(activity: Activity) {
     if (!confirm(`Odstrániť aktivitu „${activity.name}“?`)) return;
     router.delete(destroyActivity(activity.id).url, { preserveScroll: true });
+}
+
+// --- Detail modal ---
+const detailOpen = ref(false);
+const detailActivity = ref<Activity | null>(null);
+function openDetail(activity: Activity) {
+    detailActivity.value = activity;
+    detailOpen.value = true;
+}
+function onDetailEdit(activity: Activity) {
+    detailOpen.value = false;
+    openEdit(activity);
+}
+function onDetailDuplicate(activity: Activity) {
+    router.post(duplicateActivity(activity.id).url, {}, { preserveScroll: true });
+    detailOpen.value = false;
+}
+function onDetailRemove(activity: Activity) {
+    if (!confirm(`Odstrániť aktivitu „${activity.name}“?`)) return;
+    router.delete(destroyActivity(activity.id).url, {
+        preserveScroll: true,
+        onSuccess: () => (detailOpen.value = false),
+    });
 }
 
 // --- New library ---
@@ -239,19 +263,25 @@ function removeCategory(cat: ActivityCategory) {
             </div>
 
             <div v-if="filtered.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <Card v-for="activity in filtered" :key="activity.id" class="group py-0">
-                    <CardContent class="flex flex-col gap-2 p-4">
+                <Card
+                    v-for="activity in filtered"
+                    :key="activity.id"
+                    role="button"
+                    tabindex="0"
+                    class="group cursor-pointer overflow-hidden border-l-4 py-0 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                    :class="colorStyle(activity.color).cell"
+                    @click="openDetail(activity)"
+                    @keydown.enter="openDetail(activity)"
+                >
+                    <CardContent class="flex h-full flex-col gap-2 bg-card/60 p-4">
                         <div class="flex items-start justify-between gap-2">
                             <div class="flex items-center gap-2">
-                                <span class="size-3 rounded-full" :class="colorStyle(activity.color).dot" />
+                                <span class="size-3 shrink-0 rounded-full" :class="colorStyle(activity.color).dot" />
                                 <h3 class="leading-tight font-semibold">{{ activity.name }}</h3>
                             </div>
                             <div class="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                                <Button variant="ghost" size="icon-sm" @click="openEdit(activity)">
+                                <Button variant="ghost" size="icon-sm" @click.stop="openEdit(activity)">
                                     <Pencil />
-                                </Button>
-                                <Button variant="ghost" size="icon-sm" @click="remove(activity)">
-                                    <Trash2 class="text-destructive" />
                                 </Button>
                             </div>
                         </div>
@@ -263,11 +293,21 @@ function removeCategory(cat: ActivityCategory) {
                             >
                                 {{ categoryById(categories, activity.category_id)!.name }}
                             </Badge>
-                            <span class="text-xs text-muted-foreground">{{ activity.default_duration }} min</span>
+                            <span class="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Clock class="size-3" /> {{ activity.default_duration }} min
+                            </span>
                         </div>
                         <p v-if="activity.description" class="line-clamp-3 text-sm text-muted-foreground">
                             {{ activity.description }}
                         </p>
+                        <div class="mt-auto flex items-center gap-3 pt-1 text-[11px] text-muted-foreground">
+                            <span v-if="activity.materials" class="flex items-center gap-1">
+                                <Package class="size-3" /> materiál
+                            </span>
+                            <span v-if="(activity.usage_count ?? 0) > 0" class="flex items-center gap-1">
+                                <LayoutList class="size-3" /> {{ activity.usage_count }}× v programe
+                            </span>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
@@ -297,6 +337,16 @@ function removeCategory(cat: ActivityCategory) {
         :activity="editing"
         :library-id="selectedLibraryId"
         :categories="categories"
+    />
+
+    <ActivityDetailDialog
+        v-model:open="detailOpen"
+        :activity="detailActivity"
+        :categories="categories"
+        :can-manage="!!selectedLibrary"
+        @edit="onDetailEdit"
+        @duplicate="onDetailDuplicate"
+        @remove="onDetailRemove"
     />
 
     <!-- New library -->
