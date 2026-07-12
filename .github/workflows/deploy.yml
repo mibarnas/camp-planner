@@ -31,10 +31,26 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: '22'
+
+      # The Vite build runs `php artisan wayfinder:generate`, so it needs the PHP
+      # dependencies and a bootable app (APP_KEY) available here.
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
 
       - name: Build assets
         run: |
