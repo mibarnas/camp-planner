@@ -146,3 +146,6 @@ jobs:
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
+          # Tell the running queue worker to restart so it picks up the new code.
+          # Harmless if no worker is running (just sets a cache flag).
+          php artisan queue:restart
