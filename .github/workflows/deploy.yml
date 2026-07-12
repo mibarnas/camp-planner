@@ -5,9 +5,22 @@ name: deploy
 #                 Kept OFF the production box on purpose: `npm run build` (Vite) is
 #                 memory-hungry and, on the 4 GB server that also runs MySQL, a build
 #                 spike triggered the OOM-killer and took MySQL down.
-#   2. `deploy` — runs on the self-hosted runner ON the production box, updates the
-#                 checkout at /var/www/tabory.barnas.net, and pulls in the prebuilt
-#                 assets instead of building them locally.
+#   2. `deploy` — runs on the self-hosted runner ON the production box. It builds
+#                 each release in its OWN directory and flips an atomic `current`
+#                 symlink at the end, so the live server never serves a half-written
+#                 tree. This is what fixes the intermittent "A facade root has not
+#                 been set" blank pages: those were requests that landed while the
+#                 old in-place deploy was rewriting files under a running Apache.
+#
+# On-box layout (created once, see one-time setup notes in the repo/PR):
+#   /var/www/tabory.barnas.net/
+#     repo.git/                  bare cache clone (git objects only)
+#     releases/<ts>-<sha>/       one dir per deploy
+#     shared/.env                the real production env (symlinked into each release)
+#     shared/storage/            persistent logs/uploads/sessions (symlinked in)
+#     current -> releases/<...>  the symlink Apache's DocumentRoot points at
+#
+# Apache DocumentRoot must be /var/www/tabory.barnas.net/current/public.
 
 on:
   push:
@@ -69,59 +82,64 @@ jobs:
     needs: build
     runs-on: [self-hosted]
     env:
-      DEPLOY_DIR: /var/www/tabory.barnas.net
+      # Base dir that holds repo.git/, releases/, shared/ and the `current` symlink.
+      BASE_DIR: /var/www/tabory.barnas.net
 
     steps:
-      - name: Pull latest code
-        working-directory: ${{ env.DEPLOY_DIR }}
+      - name: Create the release directory from the pushed commit
         env:
           # Automatic per-run token GitHub injects; lets us pull over HTTPS with no
-          # SSH key on the runner. Used inline below so it is never written to .git/config.
+          # SSH key on the runner. Used inline below so it is never written to git config.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           REPO_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git fetch --prune "$REPO_URL" "${GITHUB_REF_NAME}"
-          # Deterministic deploy: check out the exact commit that was pushed.
-          git reset --hard "${GITHUB_SHA}"
+          CACHE="${BASE_DIR}/repo.git"
 
-      - name: Install PHP dependencies
-        working-directory: ${{ env.DEPLOY_DIR }}
-        run: composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+          # A bare object cache avoids a full clone on every deploy. We never add a
+          # remote to it, so the tokenised URL is never persisted to disk — each
+          # fetch passes it inline instead.
+          [ -d "$CACHE" ] || git init --bare -q "$CACHE"
+          git --git-dir="$CACHE" fetch --prune "$REPO_URL" \
+            "+refs/heads/${GITHUB_REF_NAME}:refs/heads/${GITHUB_REF_NAME}"
 
-      - name: Prepare build directory
-        working-directory: ${{ env.DEPLOY_DIR }}
+          # One immutable directory per deploy, sortable by time and traceable to a SHA.
+          RELEASE_DIR="${BASE_DIR}/releases/$(date +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          mkdir -p "$RELEASE_DIR"
+          # `git archive` writes a clean tree with no .git/ — the release is a
+          # deployable snapshot, not a working checkout.
+          git --git-dir="$CACHE" archive "${GITHUB_SHA}" | tar -x -C "$RELEASE_DIR"
+
+          # Expose the path to every later step in this job.
+          echo "RELEASE_DIR=$RELEASE_DIR" >> "$GITHUB_ENV"
+
+      - name: Link shared env + storage into the release
         run: |
           set -euo pipefail
-          mkdir -p public/build
-          # A stray `public/hot` (left by `npm run dev`) makes @vite serve assets
-          # from a dev server that isn't running in production -> blank page.
-          rm -f public/hot
+          # The real production secrets and all persistent state live in shared/ and
+          # survive across releases; the release only ever holds code + built assets.
+          ln -sfn "${BASE_DIR}/shared/.env"     "${RELEASE_DIR}/.env"
+          rm -rf "${RELEASE_DIR}/storage"
+          ln -sfn "${BASE_DIR}/shared/storage"  "${RELEASE_DIR}/storage"
+
+      - name: Install PHP dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --no-dev \
+            --optimize-autoloader --working-dir="${RELEASE_DIR}"
 
       - name: Download built assets
-        # Overlays the new hashed assets on top of the existing ones (no wipe), so
-        # a browser tab opened before this deploy can still fetch its old chunks
-        # instead of blanking. manifest.json is overwritten, so fresh loads use the
-        # new assets. Stale files are pruned below.
+        # Land the prebuilt Vite assets straight into this release's public/build.
         uses: actions/download-artifact@v4
         with:
           name: build-assets
-          path: ${{ env.DEPLOY_DIR }}/public/build
-
-      - name: Prune stale assets
-        working-directory: ${{ env.DEPLOY_DIR }}
-        run: |
-          set -euo pipefail
-          # Freshly extracted files have a current mtime; only genuinely old
-          # orphans from past deploys (7+ days) are removed.
-          find public/build -type f -mtime +7 -delete || true
+          path: ${{ env.RELEASE_DIR }}/public/build
 
       - name: Migrate database (with backup + auto-restore)
-        working-directory: ${{ env.DEPLOY_DIR }}
+        working-directory: ${{ env.RELEASE_DIR }}
         run: |
           set -euo pipefail
 
-          # Read DB credentials straight from the deployed .env, stripping any quotes.
+          # Read DB credentials straight from the (symlinked) shared .env, stripping quotes.
           get_env() { grep -E "^$1=" .env | head -1 | cut -d '=' -f2- | sed -e 's/^["'\'']//' -e 's/["'\'']$//'; }
           DB_DATABASE=$(get_env DB_DATABASE)
           DB_USERNAME=$(get_env DB_USERNAME)
@@ -129,6 +147,7 @@ jobs:
           DB_HOST=$(get_env DB_HOST); DB_HOST=${DB_HOST:-127.0.0.1}
           DB_PORT=$(get_env DB_PORT); DB_PORT=${DB_PORT:-3306}
 
+          # storage/ is the shared dir, so backups persist across releases.
           BACKUP_DIR=storage/app/backups
           mkdir -p "$BACKUP_DIR"
           BACKUP_FILE="$BACKUP_DIR/pre-migrate-$(date +%Y%m%d-%H%M%S).sql"
@@ -139,7 +158,7 @@ jobs:
             "$DB_DATABASE" > "$BACKUP_FILE"
 
           # If the migration fails, restore the pre-migration snapshot so the
-          # database is never left half-migrated, then fail the deploy.
+          # database is never left half-migrated, then fail the deploy (no flip).
           if ! php artisan migrate --force; then
             echo "::error::Migration failed — restoring database from $BACKUP_FILE"
             mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USERNAME" -p"$DB_PASSWORD" \
@@ -150,28 +169,37 @@ jobs:
           # Prune backups older than 30 days.
           find "$BACKUP_DIR" -name 'pre-migrate-*.sql' -mtime +30 -delete || true
 
-      - name: Rebuild caches
-        working-directory: ${{ env.DEPLOY_DIR }}
+      - name: Build caches inside the release
+        working-directory: ${{ env.RELEASE_DIR }}
         run: |
           set -euo pipefail
+          # These write only into THIS release's bootstrap/cache — the live release
+          # is untouched, so there is no window where a running request can read a
+          # half-written config/route cache.
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
-          # Tell the running queue worker to restart so it picks up the new code.
-          # Harmless if no worker is running (just sets a cache flag).
-          php artisan queue:restart
 
-      - name: Reload Apache (flush opcache, swap to new code atomically)
-        working-directory: ${{ env.DEPLOY_DIR }}
+      - name: Go live (atomic symlink flip + opcache flush)
         run: |
           set -euo pipefail
-          # PHP runs as Apache mod_php, so opcache lives inside the Apache
-          # workers. `git reset --hard` + composer install + *:cache above all
-          # mutate files in place under the live server; until the workers are
-          # recycled they keep serving a mix of stale bytecode and new files,
-          # which fatals during bootstrap ("A facade root has not been set" ->
-          # blank page) for any request that lands mid-deploy.
-          #
-          # A graceful reload finishes in-flight requests on the old workers and
-          # starts fresh ones with a clean opcache + the newly cached config.
+          # Atomic swap: build the new symlink under a temp name, then rename it
+          # over `current`. rename(2) is atomic, so every request sees either the
+          # whole old release or the whole new one — never a mix.
+          ln -sfn "${RELEASE_DIR}" "${BASE_DIR}/current.tmp"
+          mv -Tf "${BASE_DIR}/current.tmp" "${BASE_DIR}/current"
+
+          # PHP runs as Apache mod_php and opcache caches by resolved path, so
+          # recycle the workers to guarantee they serve the new release with a
+          # clean opcache. Graceful: in-flight requests finish on the old workers.
           sudo systemctl reload apache2
+
+          # Signal the queue worker (started against .../current/artisan) to
+          # restart so it picks up the new code. Harmless if none is running.
+          php "${BASE_DIR}/current/artisan" queue:restart
+
+      - name: Prune old releases
+        run: |
+          set -euo pipefail
+          # Keep the 5 most recent releases for fast rollback; delete the rest.
+          ls -1dt "${BASE_DIR}/releases/"*/ | tail -n +6 | xargs -r rm -rf
