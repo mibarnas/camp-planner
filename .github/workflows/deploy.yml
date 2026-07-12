@@ -160,3 +160,18 @@ jobs:
           # Tell the running queue worker to restart so it picks up the new code.
           # Harmless if no worker is running (just sets a cache flag).
           php artisan queue:restart
+
+      - name: Reload Apache (flush opcache, swap to new code atomically)
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          set -euo pipefail
+          # PHP runs as Apache mod_php, so opcache lives inside the Apache
+          # workers. `git reset --hard` + composer install + *:cache above all
+          # mutate files in place under the live server; until the workers are
+          # recycled they keep serving a mix of stale bytecode and new files,
+          # which fatals during bootstrap ("A facade root has not been set" ->
+          # blank page) for any request that lands mid-deploy.
+          #
+          # A graceful reload finishes in-flight requests on the old workers and
+          # starts fresh ones with a clean opcache + the newly cached config.
+          sudo systemctl reload apache2
