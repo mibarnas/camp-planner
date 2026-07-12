@@ -36,7 +36,7 @@ return [
     ],
 
     'gemini' => [
-        'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+        'model' => env('GEMINI_MODEL', 'gemini-flash-latest'),
     ],
 
 ];
