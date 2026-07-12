@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\CampInvitationMail;
 use App\Models\Camp;
 use App\Models\CampInvitation;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class CampMemberController extends Controller
@@ -41,14 +43,18 @@ class CampMemberController extends Controller
             ]);
         }
 
-        $camp->invitations()->updateOrCreate(
+        $invitation = $camp->invitations()->updateOrCreate(
             ['email' => $email],
             ['role' => 'leader', 'invited_by' => $request->user()->id, 'accepted_at' => null],
         );
 
+        // Queued, and in the inviter's current language.
+        $invitation->loadMissing('camp', 'inviter');
+        Mail::to($email)->locale(app()->getLocale())->send(new CampInvitationMail($invitation));
+
         return back()->with('toast', [
             'type' => 'success',
-            'message' => __('Invitation created. Share the invite link with :email.', ['email' => $email]),
+            'message' => __('Invitation sent to :email.', ['email' => $email]),
         ]);
     }
 
