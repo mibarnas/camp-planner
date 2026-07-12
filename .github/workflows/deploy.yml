@@ -147,8 +147,12 @@ jobs:
           DB_HOST=$(get_env DB_HOST); DB_HOST=${DB_HOST:-127.0.0.1}
           DB_PORT=$(get_env DB_PORT); DB_PORT=${DB_PORT:-3306}
 
-          # storage/ is the shared dir, so backups persist across releases.
-          BACKUP_DIR=storage/app/backups
+          # Keep backups OUT of shared/storage: that tree is chowned to www-data
+          # for the web runtime (see "Hand runtime-writable state to the web user"),
+          # which would then make this step — running as the deploy user — unable to
+          # write here. shared/backups is a sibling dir owned by the deploy user and
+          # still persists across releases.
+          BACKUP_DIR="${BASE_DIR}/shared/backups"
           mkdir -p "$BACKUP_DIR"
           BACKUP_FILE="$BACKUP_DIR/pre-migrate-$(date +%Y%m%d-%H%M%S).sql"
 
