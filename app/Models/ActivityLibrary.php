@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $owner_id
  * @property string $name
+ * @property string|null $share_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -21,6 +22,7 @@ class ActivityLibrary extends Model
     protected $fillable = [
         'owner_id',
         'name',
+        'share_token',
     ];
 
     /**

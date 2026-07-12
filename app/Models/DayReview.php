@@ -8,47 +8,27 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
+ * One camp leader's review of a single camp day.
+ *
  * @property int $id
  * @property int $camp_day_id
- * @property int|null $activity_id
- * @property string $start_time
- * @property int $duration
- * @property string|null $title
- * @property string|null $description
- * @property string|null $responsible
- * @property string|null $materials
+ * @property int $user_id
+ * @property int|null $camp_rating last day only, 1..5
+ * @property string|null $camp_reason
  * @property string|null $notes
- * @property bool $is_done
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- * @property-read Activity|null $activity
  */
-class ProgramEntry extends Model
+class DayReview extends Model
 {
     /** @var list<string> */
     protected $fillable = [
         'camp_day_id',
-        'activity_id',
-        'start_time',
-        'duration',
-        'title',
-        'description',
-        'responsible',
-        'materials',
+        'user_id',
+        'camp_rating',
+        'camp_reason',
         'notes',
-        'is_done',
     ];
-
-    /**
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'is_done' => 'boolean',
-            'duration' => 'integer',
-        ];
-    }
 
     /**
      * @return BelongsTo<CampDay, $this>
@@ -59,11 +39,11 @@ class ProgramEntry extends Model
     }
 
     /**
-     * @return BelongsTo<Activity, $this>
+     * @return BelongsTo<User, $this>
      */
-    public function activity(): BelongsTo
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(Activity::class);
+        return $this->belongsTo(User::class);
     }
 
     /**

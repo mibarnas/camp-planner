@@ -2,7 +2,7 @@
 import { router, useForm } from '@inertiajs/vue3';
 import { Clock, Pencil, Plus, Trash2 } from '@lucide/vue';
 import { ref } from 'vue';
-import { store as storeSlot, update as updateSlot, destroy as destroySlot } from '@/routes/slots';
+import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -20,8 +20,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import InputError from '@/components/InputError.vue';
 import { COLOR_NAMES, colorStyle } from '@/lib/campColors';
+import { store as storeSlot, update as updateSlot, destroy as destroySlot } from '@/routes/slots';
 import type { TimeSlot } from '@/types/camp';
 
 const props = defineProps<{ open: boolean; campId: number; slots: TimeSlot[] }>();
@@ -59,6 +59,7 @@ function startEdit(slot: TimeSlot) {
 
 function submit() {
     const options = { preserveScroll: true, onSuccess: () => startNew() };
+
     if (editingId.value) {
         form.put(updateSlot(editingId.value).url, options);
     } else {
@@ -70,6 +71,7 @@ function remove(slot: TimeSlot) {
     if (!confirm(`Odstrániť blok „${slot.name}"? Zmažú sa aj jeho záznamy vo všetkých dňoch.`)) {
         return;
     }
+
     router.delete(destroySlot(slot.id).url, {
         preserveScroll: true,
         onSuccess: () => {

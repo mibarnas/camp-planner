@@ -6,6 +6,7 @@ import {
     Package,
     Pencil,
     Plus,
+    Star,
     StickyNote,
     Trash2,
     User,
@@ -34,6 +35,7 @@ const emit = defineEmits<{
     edit: [day: CampDay, entry: ProgramEntry];
     add: [day: CampDay, startMin: number];
     editDay: [day: CampDay];
+    review: [day: CampDay];
     toggleDone: [entry: ProgramEntry];
     commit: [entries: ProgramEntry[]];
     bulkDelete: [ids: number[]];
@@ -59,8 +61,13 @@ const zoom = ref(1);
 
 function zoomBy(factor: number, anchorClientX?: number) {
     const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom.value * factor));
-    if (next === zoom.value) return;
+
+    if (next === zoom.value) {
+return;
+}
+
     const el = wrapEl.value;
+
     if (el && anchorClientX !== undefined) {
         // Keep the time under the cursor in place while zooming.
         const rect = el.getBoundingClientRect();
@@ -78,7 +85,10 @@ function resetZoom() {
     zoom.value = 1;
 }
 function onWheel(e: WheelEvent) {
-    if (!e.ctrlKey && !e.metaKey) return;
+    if (!e.ctrlKey && !e.metaKey) {
+return;
+}
+
     e.preventDefault();
     zoomBy(e.deltaY < 0 ? 1.25 : 1 / 1.25, e.clientX);
 }
@@ -87,10 +97,12 @@ onMounted(() => {
     resizeObserver = new ResizeObserver((entries) => {
         containerW.value = entries[0]?.contentRect.width ?? containerW.value;
     });
+
     if (wrapEl.value) {
         resizeObserver.observe(wrapEl.value);
         wrapEl.value.addEventListener('wheel', onWheel, { passive: false });
     }
+
     window.addEventListener('keydown', onKeydown);
 });
 onBeforeUnmount(() => {
@@ -109,9 +121,13 @@ const trackWidth = computed(() => totalMin.value * pxPerMin.value);
 const hourTicks = computed(() => {
     const ticks: number[] = [];
     const first = Math.ceil(bounds.value.start / 60) * 60;
+
     // Stop strictly before the end so a boundary that lands exactly on the hour
     // (e.g. last block ends 16:00) doesn't leave a stray label at the edge.
-    for (let m = first; m < bounds.value.end; m += 60) ticks.push(m);
+    for (let m = first; m < bounds.value.end; m += 60) {
+ticks.push(m);
+}
+
     return ticks;
 });
 
@@ -128,6 +144,7 @@ function capitalize(v: string): string {
 const layout = computed(() =>
     props.days.map((day) => {
         const { items, lanes } = assignLanes(day.entries);
+
         return { day, items, height: lanes * LANE_H + PAD * 2 };
     }),
 );
@@ -148,8 +165,15 @@ function cardTooltip(entry: ProgramEntry): string {
         entry.title || entry.activity?.name || 'Aktivita',
         `${entry.start_time}–${end} · ${durationLabel(entry.duration)}`,
     ];
-    if (entry.responsible) lines.push(`Zodpovedný: ${entry.responsible}`);
-    if (entry.notes) lines.push(`Poznámka: ${entry.notes}`);
+
+    if (entry.responsible) {
+lines.push(`Zodpovedný: ${entry.responsible}`);
+}
+
+    if (entry.notes) {
+lines.push(`Poznámka: ${entry.notes}`);
+}
+
     return lines.join('\n');
 }
 
@@ -162,8 +186,13 @@ function isSelected(entry: ProgramEntry): boolean {
 }
 function toggleSelect(entry: ProgramEntry) {
     const next = new Set(selectedIds.value);
-    if (next.has(entry.id)) next.delete(entry.id);
-    else next.add(entry.id);
+
+    if (next.has(entry.id)) {
+next.delete(entry.id);
+} else {
+next.add(entry.id);
+}
+
     selectedIds.value = next;
 }
 function clearSelection() {
@@ -177,13 +206,22 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 function applyBulkResponsible() {
-    if (!selectedIds.value.size) return;
+    if (!selectedIds.value.size) {
+return;
+}
+
     emit('bulkResponsible', [...selectedIds.value], bulkResponsible.value.trim());
     bulkResponsible.value = '';
 }
 function deleteSelected() {
-    if (!selectedIds.value.size) return;
-    if (!confirm(`Zmazať ${selectedIds.value.size} vybraných aktivít?`)) return;
+    if (!selectedIds.value.size) {
+return;
+}
+
+    if (!confirm(`Zmazať ${selectedIds.value.size} vybraných aktivít?`)) {
+return;
+}
+
     emit('bulkDelete', [...selectedIds.value]);
     clearSelection();
 }
@@ -204,7 +242,10 @@ function openCardMenu(e: MouseEvent, day: CampDay, entry: ProgramEntry) {
     contextMenu.value = { x: e.clientX, y: e.clientY, day, entry, startMin: 0 };
 }
 function openTrackMenu(e: MouseEvent, day: CampDay) {
-    if ((e.target as HTMLElement).closest('[data-card]')) return;
+    if ((e.target as HTMLElement).closest('[data-card]')) {
+return;
+}
+
     e.preventDefault();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const min = snap(bounds.value.start + (e.clientX - rect.left) / pxPerMin.value);
@@ -215,33 +256,54 @@ function closeMenu() {
 }
 function menuEdit() {
     const m = contextMenu.value;
-    if (m?.entry) emit('edit', m.day, m.entry);
+
+    if (m?.entry) {
+emit('edit', m.day, m.entry);
+}
+
     closeMenu();
 }
 function menuToggleSelect() {
     const m = contextMenu.value;
-    if (m?.entry) toggleSelect(m.entry);
+
+    if (m?.entry) {
+toggleSelect(m.entry);
+}
+
     closeMenu();
 }
 function menuToggleDone() {
     const m = contextMenu.value;
-    if (m?.entry) emit('toggleDone', m.entry);
+
+    if (m?.entry) {
+emit('toggleDone', m.entry);
+}
+
     closeMenu();
 }
 function menuDelete() {
     const m = contextMenu.value;
-    if (!m?.entry) return closeMenu();
+
+    if (!m?.entry) {
+return closeMenu();
+}
+
     if (selectedIds.value.size > 1 && selectedIds.value.has(m.entry.id)) {
         emit('bulkDelete', [...selectedIds.value]);
         clearSelection();
     } else {
         emit('bulkDelete', [m.entry.id]);
     }
+
     closeMenu();
 }
 function menuAdd() {
     const m = contextMenu.value;
-    if (m) emit('add', m.day, m.startMin);
+
+    if (m) {
+emit('add', m.day, m.startMin);
+}
+
     closeMenu();
 }
 
@@ -264,11 +326,20 @@ function snap(min: number): number {
 
 function onPointerMove(e: PointerEvent) {
     const d = drag.value;
-    if (!d) return;
+
+    if (!d) {
+return;
+}
+
     let deltaMin = snap((e.clientX - d.startX) / pxPerMin.value);
-    if (Math.abs(deltaMin) >= SNAP) d.moved = true;
+
+    if (Math.abs(deltaMin) >= SNAP) {
+d.moved = true;
+}
+
     if (d.mode === 'move') {
         deltaMin = Math.max(d.minDelta, Math.min(d.maxDelta, deltaMin));
+
         for (const g of d.group) {
             g.entry.start_time = minToTime(g.origStart + deltaMin);
         }
@@ -279,12 +350,18 @@ function onPointerMove(e: PointerEvent) {
 }
 
 function beginDrag(e: PointerEvent, entry: ProgramEntry, day: CampDay) {
-    if (e.button !== 0) return; // left button only; right button = context menu
-    if ((e.target as HTMLElement).closest('[data-nodrag]')) return;
+    if (e.button !== 0) {
+return;
+} // left button only; right button = context menu
+
+    if ((e.target as HTMLElement).closest('[data-nodrag]')) {
+return;
+}
 
     // Ctrl/Cmd+click toggles selection instead of dragging.
     if (e.ctrlKey || e.metaKey) {
         toggleSelect(entry);
+
         return;
     }
 
@@ -299,6 +376,7 @@ function beginDrag(e: PointerEvent, entry: ProgramEntry, day: CampDay) {
 
     let minDelta = -Infinity;
     let maxDelta = Infinity;
+
     for (const g of group) {
         minDelta = Math.max(minDelta, bounds.value.start - g.origStart);
         maxDelta = Math.min(maxDelta, bounds.value.end - g.entry.duration - g.origStart);
@@ -319,12 +397,17 @@ function beginDrag(e: PointerEvent, entry: ProgramEntry, day: CampDay) {
         const d = drag.value;
         window.removeEventListener('pointermove', onPointerMove);
         window.removeEventListener('pointerup', onUp);
-        if (!d) return;
+
+        if (!d) {
+return;
+}
+
         if (d.moved) {
             emit('commit', d.group.map((g) => g.entry));
         } else if (d.mode === 'move') {
             emit('edit', day, d.entry);
         }
+
         drag.value = null;
     };
 
@@ -334,16 +417,26 @@ function beginDrag(e: PointerEvent, entry: ProgramEntry, day: CampDay) {
 
 // Click on empty track: clear selection first; if nothing selected, add here.
 function onTrackClick(e: MouseEvent, day: CampDay) {
-    if (drag.value) return;
-    if ((e.target as HTMLElement).closest('[data-card]')) return;
+    if (drag.value) {
+return;
+}
+
+    if ((e.target as HTMLElement).closest('[data-card]')) {
+return;
+}
+
     if (contextMenu.value) {
         closeMenu();
+
         return;
     }
+
     if (selectedIds.value.size) {
         clearSelection();
+
         return;
     }
+
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const min = snap(bounds.value.start + (e.clientX - rect.left) / pxPerMin.value);
     emit('add', day, Math.max(bounds.value.start, min));
@@ -447,9 +540,26 @@ function onTrackClick(e: MouseEvent, day: CampDay) {
                         <div class="flex items-start justify-between gap-1">
                             <div>
                                 <p class="font-semibold leading-tight">{{ capitalize(row.day.weekday) }}</p>
-                                <p class="text-xs text-muted-foreground">{{ row.day.label }}</p>
+                                <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                    {{ row.day.label }}
+                                    <span
+                                        v-if="row.day.review_summary.avg != null"
+                                        class="flex items-center gap-0.5 text-amber-500"
+                                        :title="`Priemer ${row.day.review_summary.avg} · ${row.day.review_summary.reviewers} hodnotení`"
+                                    >
+                                        <Star class="size-3 fill-amber-400 text-amber-400" />{{ row.day.review_summary.avg }}
+                                    </span>
+                                </p>
                             </div>
                             <div class="flex gap-0.5 opacity-0 transition group-hover/day:opacity-100">
+                                <button
+                                    class="rounded p-1 hover:bg-accent"
+                                    :class="row.day.my_review ? 'text-amber-500' : 'text-muted-foreground'"
+                                    title="Zhodnotiť deň"
+                                    @click="emit('review', row.day)"
+                                >
+                                    <Star class="size-3.5" :class="row.day.my_review ? 'fill-amber-400' : ''" />
+                                </button>
                                 <button
                                     class="rounded p-1 text-muted-foreground hover:bg-accent"
                                     title="Pridať aktivitu"
@@ -557,6 +667,13 @@ function onTrackClick(e: MouseEvent, day: CampDay) {
                                     v-if="item.entry.notes"
                                     class="size-3 shrink-0 text-amber-600 dark:text-amber-400"
                                 />
+                                <span
+                                    v-if="item.entry.avg_rating != null"
+                                    class="ml-auto flex shrink-0 items-center gap-0.5 font-medium text-amber-500"
+                                    :title="`${item.entry.rating_count} hodnotení`"
+                                >
+                                    <Star class="size-2.5 fill-amber-400 text-amber-400" />{{ item.entry.avg_rating }}
+                                </span>
                             </div>
                             <span
                                 v-if="item.entry.responsible"

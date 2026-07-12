@@ -186,9 +186,14 @@ class CampController extends Controller
             'timeSlots',
             'days.entries' => fn ($q) => $q->orderBy('start_time'),
             'days.entries.activity:id,name,color',
+            'days.reviews.ratings',
+            'days.reviews.user:id,name',
             'members:id,name,email',
             'invitations' => fn ($q) => $q->whereNull('accepted_at'),
         ]);
+
+        $userId = Auth::id();
+        $lastDayId = $camp->days->last()?->id;
 
         $slots = $camp->timeSlots->map(fn (TimeSlot $slot) => [
             'id' => $slot->id,
@@ -200,20 +205,48 @@ class CampController extends Controller
             'position' => $slot->position,
         ])->values();
 
-        $days = $camp->days->map(function (CampDay $day) {
-            $entries = $day->entries->map(fn (ProgramEntry $entry) => [
-                'id' => $entry->id,
-                'activity_id' => $entry->activity_id,
-                'activity' => $entry->activity?->only(['id', 'name', 'color']),
-                'start_time' => substr((string) $entry->start_time, 0, 5),
-                'duration' => $entry->duration,
-                'title' => $entry->title,
-                'description' => $entry->description,
-                'responsible' => $entry->responsible,
-                'materials' => $entry->materials,
-                'notes' => $entry->notes,
-                'is_done' => $entry->is_done,
-            ])->values()->all();
+        $days = $camp->days->map(function (CampDay $day) use ($userId, $lastDayId) {
+            // Aggregate every leader's activity ratings for the day, keyed by entry.
+            $ratingsByEntry = $day->reviews->flatMap->ratings->groupBy('program_entry_id');
+
+            $entries = $day->entries->map(function (ProgramEntry $entry) use ($ratingsByEntry) {
+                $rs = $ratingsByEntry->get($entry->id);
+
+                return [
+                    'id' => $entry->id,
+                    'activity_id' => $entry->activity_id,
+                    'activity' => $entry->activity?->only(['id', 'name', 'color']),
+                    'start_time' => substr((string) $entry->start_time, 0, 5),
+                    'duration' => $entry->duration,
+                    'title' => $entry->title,
+                    'description' => $entry->description,
+                    'responsible' => $entry->responsible,
+                    'materials' => $entry->materials,
+                    'notes' => $entry->notes,
+                    'is_done' => $entry->is_done,
+                    'avg_rating' => $rs && $rs->count() ? round($rs->avg('rating'), 1) : null,
+                    'rating_count' => $rs?->count() ?? 0,
+                ];
+            })->values()->all();
+
+            // The current user's own review, if any.
+            $mine = $day->reviews->firstWhere('user_id', $userId);
+            $myReview = null;
+            if ($mine) {
+                $myRatings = [];
+                foreach ($mine->ratings as $r) {
+                    $myRatings[$r->program_entry_id] = ['rating' => $r->rating, 'reason' => $r->reason];
+                }
+                $myReview = [
+                    'notes' => $mine->notes,
+                    'camp_rating' => $mine->camp_rating,
+                    'camp_reason' => $mine->camp_reason,
+                    'ratings' => $myRatings,
+                ];
+            }
+
+            $allRatings = $day->reviews->flatMap->ratings;
+            $campRatings = $day->reviews->pluck('camp_rating')->filter();
 
             $weekdays = [1 => 'pondelok', 2 => 'utorok', 3 => 'streda', 4 => 'štvrtok', 5 => 'piatok', 6 => 'sobota', 7 => 'nedeľa'];
 
@@ -229,6 +262,13 @@ class CampController extends Controller
                 'materials' => $day->materials,
                 'notes' => $day->notes,
                 'entries' => $entries,
+                'is_last' => $day->id === $lastDayId,
+                'my_review' => $myReview,
+                'review_summary' => [
+                    'reviewers' => $day->reviews->count(),
+                    'avg' => $allRatings->count() ? round($allRatings->avg('rating'), 1) : null,
+                    'camp_avg' => $campRatings->count() ? round($campRatings->avg(), 1) : null,
+                ],
             ];
         })->values();
 

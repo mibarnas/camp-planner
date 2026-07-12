@@ -60,6 +60,23 @@ export type ProgramEntry = {
     materials: string | null;
     notes: string | null;
     is_done: boolean;
+    avg_rating: number | null;
+    rating_count: number;
+};
+
+export type EntryRating = { rating: number; reason: string | null };
+
+export type DayReviewData = {
+    notes: string | null;
+    camp_rating: number | null;
+    camp_reason: string | null;
+    ratings: Record<number, EntryRating>;
+};
+
+export type ReviewSummary = {
+    reviewers: number;
+    avg: number | null;
+    camp_avg: number | null;
 };
 
 export type CampDay = {
@@ -74,6 +91,9 @@ export type CampDay = {
     materials: string | null;
     notes: string | null;
     entries: ProgramEntry[];
+    is_last: boolean;
+    my_review: DayReviewData | null;
+    review_summary: ReviewSummary;
 };
 
 export type ActivityCategory = {
@@ -93,6 +113,7 @@ export type Activity = {
     creator?: { id: number; name: string } | null;
     usage_count?: number;
     created_at?: string | null;
+    share_url?: string;
 };
 
 export type CampMember = {

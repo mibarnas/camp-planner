@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useForm } from '@inertiajs/vue3';
 import { watch } from 'vue';
-import { store as storeActivity, update as updateActivity } from '@/routes/activities';
+import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -21,8 +21,8 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import InputError from '@/components/InputError.vue';
 import { categoryById, colorStyle, COLOR_NAMES } from '@/lib/campColors';
+import { store as storeActivity, update as updateActivity } from '@/routes/activities';
 import type { Activity, ActivityCategory } from '@/types/camp';
 
 const props = defineProps<{
@@ -50,7 +50,10 @@ const form = useForm({
 watch(
     () => props.open,
     (open) => {
-        if (!open) return;
+        if (!open) {
+return;
+}
+
         const a = props.activity;
         form.clearErrors();
         form.defaults({
@@ -69,10 +72,14 @@ watch(
 function onCategoryChange(value: string) {
     const id = value === 'none' ? null : Number(value);
     form.activity_category_id = id;
+
     // Adopt the category's colour when creating a fresh activity for convenience.
     if (!props.activity) {
         const cat = categoryById(props.categories, id);
-        if (cat?.color) form.color = cat.color;
+
+        if (cat?.color) {
+form.color = cat.color;
+}
     }
 }
 
@@ -84,6 +91,7 @@ function submit() {
             emit('update:open', false);
         },
     };
+
     if (props.activity) {
         form.put(updateActivity(props.activity.id).url, options);
     } else {

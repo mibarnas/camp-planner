@@ -106,6 +106,7 @@ export function colorStyle(name: string | null | undefined): ColorStyle {
     if (!name) {
         return FALLBACK;
     }
+
     return COLORS[name] ?? FALLBACK;
 }
 
@@ -117,6 +118,9 @@ export function categoryById(
     categories: Category[],
     id: number | null | undefined,
 ): Category | null {
-    if (id == null) return null;
+    if (id == null) {
+return null;
+}
+
     return categories.find((c) => c.id === id) ?? null;
 }

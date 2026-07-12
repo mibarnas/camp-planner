@@ -62,4 +62,12 @@ class CampDay extends Model
     {
         return $this->hasMany(ProgramEntry::class);
     }
+
+    /**
+     * @return HasMany<DayReview, $this>
+     */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(DayReview::class);
+    }
 }

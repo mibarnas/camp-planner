@@ -6,8 +6,10 @@ use App\Http\Controllers\ActivityLibraryController;
 use App\Http\Controllers\CampController;
 use App\Http\Controllers\CampDayController;
 use App\Http\Controllers\CampMemberController;
+use App\Http\Controllers\DayReviewController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\ProgramEntryController;
+use App\Http\Controllers\SummaryController;
 use App\Http\Controllers\TimeSlotController;
 use Illuminate\Support\Facades\Route;
 
@@ -19,6 +21,14 @@ Route::get('invitations/{token}', [InvitationController::class, 'show'])->name('
 // registered user can accept immediately.
 Route::post('invitations/{token}', [InvitationController::class, 'accept'])
     ->middleware('auth')->name('invitations.accept');
+
+// Public read-only view of a single shared activity.
+Route::get('a/{token}', [ActivityController::class, 'shared'])->name('activities.shared');
+
+// Public activity-library share link.
+Route::get('libraries/join/{token}', [ActivityLibraryController::class, 'joinShow'])->name('libraries.join.show');
+Route::post('libraries/join/{token}', [ActivityLibraryController::class, 'joinAccept'])
+    ->middleware('auth')->name('libraries.join.accept');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     // The camps list is the app's home; keep the name so existing links redirect.
@@ -33,9 +43,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('camps/{camp}', [CampController::class, 'destroy'])->name('camps.destroy');
     Route::post('camps/{camp}/duplicate', [CampController::class, 'duplicate'])->name('camps.duplicate');
     Route::post('camps/{camp}/fill-name-days', [CampController::class, 'fillNameDays'])->name('camps.fillNameDays');
+    Route::post('camps/{camp}/summary', [SummaryController::class, 'camp'])->name('camps.summary');
+    Route::post('days/{day}/summary', [SummaryController::class, 'day'])->name('days.summary');
 
     // Camp days (derived from the date range — only their meta is editable)
     Route::put('days/{day}', [CampDayController::class, 'update'])->name('days.update');
+    Route::post('days/{day}/review', [DayReviewController::class, 'store'])->name('days.review.store');
 
     // Time slots (columns)
     Route::post('camps/{camp}/slots', [TimeSlotController::class, 'store'])->name('slots.store');
@@ -69,6 +82,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('libraries/{library}', [ActivityLibraryController::class, 'destroy'])->name('libraries.destroy');
     Route::post('libraries/{library}/members', [ActivityLibraryController::class, 'storeMember'])->name('libraries.members.store');
     Route::delete('libraries/{library}/members/{user}', [ActivityLibraryController::class, 'destroyMember'])->name('libraries.members.destroy');
+    Route::post('libraries/{library}/share-link', [ActivityLibraryController::class, 'storeShareLink'])->name('libraries.shareLink.store');
+    Route::delete('libraries/{library}/share-link', [ActivityLibraryController::class, 'destroyShareLink'])->name('libraries.shareLink.destroy');
+    Route::get('libraries/{library}/export', [ActivityLibraryController::class, 'export'])->name('libraries.export');
+    Route::post('libraries/{library}/import', [ActivityLibraryController::class, 'import'])->name('libraries.import');
 
     // Activity categories (user-defined tags, scoped to a library)
     Route::post('libraries/{library}/categories', [ActivityCategoryController::class, 'store'])->name('categories.store');

@@ -12,6 +12,30 @@ use Inertia\Response;
 
 class ActivityController extends Controller
 {
+    /**
+     * Public, read-only view of a single activity (no login required).
+     */
+    public function shared(string $token): Response
+    {
+        $activity = Activity::with('category:id,name,color')->where('share_token', $token)->first();
+
+        if (! $activity) {
+            return Inertia::render('activities/Shared', ['valid' => false]);
+        }
+
+        return Inertia::render('activities/Shared', [
+            'valid' => true,
+            'activity' => [
+                'name' => $activity->name,
+                'category' => $activity->category?->only(['name', 'color']),
+                'description' => $activity->description,
+                'default_duration' => $activity->default_duration,
+                'color' => $activity->color,
+                'materials' => $activity->materials,
+            ],
+        ]);
+    }
+
     public function index(Request $request): Response
     {
         $user = $request->user();
@@ -45,6 +69,7 @@ class ActivityController extends Controller
                     'creator' => $a->creator?->only(['id', 'name']),
                     'usage_count' => $a->entries_count,
                     'created_at' => $a->created_at?->toDateString(),
+                    'share_url' => route('activities.shared', $a->share_token),
                 ]);
             $members = $selected->members->map(fn ($m) => [
                 'id' => $m->id,
@@ -64,6 +89,9 @@ class ActivityController extends Controller
                 'is_owner' => $l->owner_id === $user->id,
             ])->values(),
             'selectedLibraryId' => $selected?->id,
+            'shareLink' => $selected?->share_token
+                ? route('libraries.join.show', $selected->share_token)
+                : null,
             'activities' => $activities,
             'members' => $members,
             'categories' => $categories,

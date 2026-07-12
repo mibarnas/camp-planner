@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useForm } from '@inertiajs/vue3';
 import { watch } from 'vue';
-import { update as updateDay } from '@/routes/days';
+import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import InputError from '@/components/InputError.vue';
+import { update as updateDay } from '@/routes/days';
 import type { CampDay } from '@/types/camp';
 
 const props = defineProps<{ open: boolean; day: CampDay | null }>();
@@ -36,6 +36,7 @@ watch(
         if (!open || !props.day) {
             return;
         }
+
         const d = props.day;
         form.clearErrors();
         form.defaults({
@@ -54,6 +55,7 @@ function submit() {
     if (!props.day) {
         return;
     }
+
     form.put(updateDay(props.day.id).url, {
         preserveScroll: true,
         onSuccess: () => emit('update:open', false),

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { Clock, Crown, LayoutList, Library, Package, Pencil, Plus, Settings2, Tag, Trash2, Users, X } from '@lucide/vue';
+import { Check, Clock, Copy, Crown, Download, LayoutList, Library, Link2, Package, Pencil, Plus, Settings2, Tag, Trash2, Upload, Users, X } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import ActivityDetailDialog from '@/components/camp/ActivityDetailDialog.vue';
 import ActivityFormDialog from '@/components/camp/ActivityFormDialog.vue';
 import Heading from '@/components/Heading.vue';
+import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,17 +26,24 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import InputError from '@/components/InputError.vue';
-import { destroy as destroyActivity, duplicate as duplicateActivity, index as activitiesIndex } from '@/routes/activities';
-import { store as storeLibrary, update as updateLibrary, destroy as destroyLibrary } from '@/routes/libraries';
-import { store as storeLibraryMember, destroy as destroyLibraryMember } from '@/routes/libraries/members';
-import { store as storeCategory, update as updateCategory, destroy as destroyCategory } from '@/routes/categories';
 import { categoryById, colorStyle, COLOR_NAMES } from '@/lib/campColors';
+import { destroy as destroyActivity, duplicate as duplicateActivity, index as activitiesIndex } from '@/routes/activities';
+import { store as storeCategory, update as updateCategory, destroy as destroyCategory } from '@/routes/categories';
+import {
+    store as storeLibrary,
+    update as updateLibrary,
+    destroy as destroyLibrary,
+    exportMethod as exportLibrary,
+    importMethod as importLibrary,
+} from '@/routes/libraries';
+import { store as storeLibraryMember, destroy as destroyLibraryMember } from '@/routes/libraries/members';
+import { store as storeShareLink, destroy as destroyShareLink } from '@/routes/libraries/shareLink';
 import type { Activity, ActivityCategory, ActivityLibrary, LibraryMember } from '@/types/camp';
 
 const props = defineProps<{
     libraries: ActivityLibrary[];
     selectedLibraryId: number | null;
+    shareLink: string | null;
     activities: Activity[];
     members: LibraryMember[];
     categories: ActivityCategory[];
@@ -61,8 +69,14 @@ const editing = ref<Activity | null>(null);
 const activeCategory = ref<number | 'all' | 'none'>('all');
 
 const filtered = computed(() => {
-    if (activeCategory.value === 'all') return props.activities;
-    if (activeCategory.value === 'none') return props.activities.filter((a) => a.category_id === null);
+    if (activeCategory.value === 'all') {
+return props.activities;
+}
+
+    if (activeCategory.value === 'none') {
+return props.activities.filter((a) => a.category_id === null);
+}
+
     return props.activities.filter((a) => a.category_id === activeCategory.value);
 });
 
@@ -79,11 +93,6 @@ function openEdit(activity: Activity) {
     editing.value = activity;
     dialogOpen.value = true;
 }
-function remove(activity: Activity) {
-    if (!confirm(`Odstrániť aktivitu „${activity.name}“?`)) return;
-    router.delete(destroyActivity(activity.id).url, { preserveScroll: true });
-}
-
 // --- Detail modal ---
 const detailOpen = ref(false);
 const detailActivity = ref<Activity | null>(null);
@@ -100,7 +109,10 @@ function onDetailDuplicate(activity: Activity) {
     detailOpen.value = false;
 }
 function onDetailRemove(activity: Activity) {
-    if (!confirm(`Odstrániť aktivitu „${activity.name}“?`)) return;
+    if (!confirm(`Odstrániť aktivitu „${activity.name}“?`)) {
+return;
+}
+
     router.delete(destroyActivity(activity.id).url, {
         preserveScroll: true,
         onSuccess: () => (detailOpen.value = false),
@@ -126,8 +138,72 @@ const memberForm = useForm({ email: '' });
 const categoryForm = useForm({ name: '', color: 'emerald' as string });
 const editingCategoryId = ref<number | null>(null);
 
+// --- Share link ---
+const shareCopied = ref(false);
+function createShareLink() {
+    if (selectedLibrary.value) {
+router.post(storeShareLink(selectedLibrary.value.id).url, {}, { preserveScroll: true });
+}
+}
+function revokeShareLink() {
+    if (!selectedLibrary.value) {
+return;
+}
+
+    if (!confirm('Zrušiť zdieľateľný odkaz?')) {
+return;
+}
+
+    router.delete(destroyShareLink(selectedLibrary.value.id).url, { preserveScroll: true });
+}
+async function copyShareLink() {
+    if (!props.shareLink) {
+return;
+}
+
+    try {
+        await navigator.clipboard.writeText(props.shareLink);
+        shareCopied.value = true;
+        setTimeout(() => (shareCopied.value = false), 1500);
+    } catch {
+        window.prompt('Skopíruj odkaz:', props.shareLink);
+    }
+}
+
+// --- Export / import ---
+const importForm = useForm<{ file: File | null }>({ file: null });
+const importInput = ref<HTMLInputElement | null>(null);
+function exportJson() {
+    if (selectedLibrary.value) {
+window.location.href = exportLibrary(selectedLibrary.value.id).url;
+}
+}
+function onImportFile(e: Event) {
+    const file = (e.target as HTMLInputElement).files?.[0];
+
+    if (!file || !selectedLibrary.value) {
+return;
+}
+
+    importForm.file = file;
+    importForm.post(importLibrary(selectedLibrary.value.id).url, {
+        preserveScroll: true,
+        forceFormData: true,
+        onFinish: () => {
+            importForm.reset();
+
+            if (importInput.value) {
+importInput.value.value = '';
+}
+        },
+    });
+}
+
 function openSettings() {
-    if (!selectedLibrary.value) return;
+    if (!selectedLibrary.value) {
+return;
+}
+
     renameForm.clearErrors();
     renameForm.name = selectedLibrary.value.name;
     memberForm.clearErrors();
@@ -136,27 +212,45 @@ function openSettings() {
     settingsOpen.value = true;
 }
 function submitRename() {
-    if (!selectedLibrary.value) return;
+    if (!selectedLibrary.value) {
+return;
+}
+
     renameForm.put(updateLibrary(selectedLibrary.value.id).url, { preserveScroll: true });
 }
 function submitMember() {
-    if (!selectedLibrary.value) return;
+    if (!selectedLibrary.value) {
+return;
+}
+
     memberForm.post(storeLibraryMember(selectedLibrary.value.id).url, {
         preserveScroll: true,
         onSuccess: () => memberForm.reset(),
     });
 }
 function removeMember(member: LibraryMember) {
-    if (!selectedLibrary.value) return;
-    if (!confirm(`Odobrať ${member.name}?`)) return;
+    if (!selectedLibrary.value) {
+return;
+}
+
+    if (!confirm(`Odobrať ${member.name}?`)) {
+return;
+}
+
     router.delete(
         destroyLibraryMember({ library: selectedLibrary.value.id, user: member.id }).url,
         { preserveScroll: true },
     );
 }
 function deleteLibrary() {
-    if (!selectedLibrary.value) return;
-    if (!confirm(`Zmazať databázu „${selectedLibrary.value.name}“ aj so všetkými aktivitami? Táto akcia je nezvratná.`)) return;
+    if (!selectedLibrary.value) {
+return;
+}
+
+    if (!confirm(`Zmazať databázu „${selectedLibrary.value.name}“ aj so všetkými aktivitami? Táto akcia je nezvratná.`)) {
+return;
+}
+
     router.delete(destroyLibrary(selectedLibrary.value.id).url);
 }
 
@@ -174,8 +268,12 @@ function startEditCategory(cat: ActivityCategory) {
     categoryForm.reset();
 }
 function submitCategory() {
-    if (!selectedLibrary.value) return;
+    if (!selectedLibrary.value) {
+return;
+}
+
     const opts = { preserveScroll: true, onSuccess: () => resetCategoryForm() };
+
     if (editingCategoryId.value) {
         categoryForm.put(updateCategory(editingCategoryId.value).url, opts);
     } else {
@@ -183,11 +281,16 @@ function submitCategory() {
     }
 }
 function removeCategory(cat: ActivityCategory) {
-    if (!confirm(`Zmazať kategóriu „${cat.name}“? Aktivity zostanú, len bez kategórie.`)) return;
+    if (!confirm(`Zmazať kategóriu „${cat.name}“? Aktivity zostanú, len bez kategórie.`)) {
+return;
+}
+
     router.delete(destroyCategory(cat.id).url, {
         preserveScroll: true,
         onSuccess: () => {
-            if (editingCategoryId.value === cat.id) resetCategoryForm();
+            if (editingCategoryId.value === cat.id) {
+resetCategoryForm();
+}
         },
     });
 }
@@ -436,6 +539,47 @@ function removeCategory(cat: ActivityCategory) {
                         </div>
                         <InputError class="w-full" :message="categoryForm.errors.name" />
                     </form>
+                </div>
+
+                <!-- Shareable link -->
+                <div class="grid gap-2 rounded-lg border p-3">
+                    <p class="flex items-center gap-1.5 text-sm font-medium">
+                        <Link2 class="size-4" /> Zdieľateľný odkaz
+                    </p>
+                    <template v-if="shareLink">
+                        <div class="flex items-center gap-1">
+                            <Input :model-value="shareLink" readonly class="h-8 flex-1 text-xs" @focus="($event.target as HTMLInputElement).select()" />
+                            <Button variant="outline" size="sm" @click="copyShareLink">
+                                <component :is="shareCopied ? Check : Copy" />
+                                {{ shareCopied ? 'Skopírované' : 'Kopírovať' }}
+                            </Button>
+                            <Button v-if="selectedLibrary?.is_owner" variant="ghost" size="icon-sm" title="Zrušiť" @click="revokeShareLink">
+                                <Trash2 class="text-destructive" />
+                            </Button>
+                        </div>
+                        <p class="text-xs text-muted-foreground">Ktokoľvek s odkazom sa môže pridať k databáze aktivít.</p>
+                    </template>
+                    <template v-else-if="selectedLibrary?.is_owner">
+                        <Button variant="outline" size="sm" class="w-fit" @click="createShareLink">
+                            <Link2 /> Vytvoriť odkaz
+                        </Button>
+                    </template>
+                </div>
+
+                <!-- Export / import -->
+                <div class="grid gap-2 rounded-lg border p-3">
+                    <p class="text-sm font-medium">Zálohovanie (JSON)</p>
+                    <div class="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" @click="exportJson">
+                            <Download /> Exportovať
+                        </Button>
+                        <Button variant="outline" size="sm" :disabled="importForm.processing" @click="importInput?.click()">
+                            <Upload /> Importovať
+                        </Button>
+                        <input ref="importInput" type="file" accept="application/json,.json" class="hidden" @change="onImportFile" />
+                    </div>
+                    <InputError :message="importForm.errors.file" />
+                    <p class="text-xs text-muted-foreground">Prenes aktivity medzi databázami cez JSON súbor.</p>
                 </div>
 
                 <!-- Members -->

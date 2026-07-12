@@ -16,6 +16,7 @@ import {
 import { computed, ref } from 'vue';
 import CampAppearanceFields from '@/components/camp/CampAppearanceFields.vue';
 import Heading from '@/components/Heading.vue';
+import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,10 +28,9 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import InputError from '@/components/InputError.vue';
-import { index as campsIndex, store as storeCamp } from '@/routes/camps';
 import { colorStyle, COLOR_NAMES } from '@/lib/campColors';
 import { campIcon } from '@/lib/campIcons';
+import { index as campsIndex, store as storeCamp } from '@/routes/camps';
 import type { ActivityLibraryRef } from '@/types/camp';
 
 type SlotDraft = {
@@ -82,22 +82,37 @@ function fmt(d: Date): string {
 }
 const rangeDays = computed(() => {
     const out: { date: string; weekday: string; label: string; dow: number }[] = [];
-    if (!form.start_date || !form.end_date) return out;
+
+    if (!form.start_date || !form.end_date) {
+return out;
+}
+
     const s = new Date(form.start_date + 'T00:00:00');
     const e = new Date(form.end_date + 'T00:00:00');
-    if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) return out;
+
+    if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) {
+return out;
+}
+
     for (const d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
         const dow = d.getDay() === 0 ? 7 : d.getDay();
         out.push({ date: fmt(d), weekday: WEEKDAYS[dow - 1], label: `${d.getDate()}.${d.getMonth() + 1}.`, dow });
-        if (out.length > 120) break;
+
+        if (out.length > 120) {
+break;
+}
     }
+
     return out;
 });
 
 // Pre-select Tue/Thu as trips once a range is first chosen.
 const tripsSeeded = ref(false);
 function seedTrips() {
-    if (tripsSeeded.value) return;
+    if (tripsSeeded.value) {
+return;
+}
+
     form.trip_dates = rangeDays.value.filter((d) => d.dow === 2 || d.dow === 4).map((d) => d.date);
     tripsSeeded.value = true;
 }
@@ -131,7 +146,10 @@ function addLeader() {
 }
 function removeLeader(i: number) {
     form.leader_emails.splice(i, 1);
-    if (form.leader_emails.length === 0) form.leader_emails.push('');
+
+    if (form.leader_emails.length === 0) {
+form.leader_emails.push('');
+}
 }
 
 // --- Navigation ---
@@ -145,11 +163,18 @@ const step1Valid = computed(
 const canNext = computed(() => (step.value === 0 ? step1Valid.value : true));
 
 function next() {
-    if (step.value === 0) seedTrips();
-    if (step.value < steps.length - 1) step.value++;
+    if (step.value === 0) {
+seedTrips();
+}
+
+    if (step.value < steps.length - 1) {
+step.value++;
+}
 }
 function back() {
-    if (step.value > 0) step.value--;
+    if (step.value > 0) {
+step.value--;
+}
 }
 
 function submit() {

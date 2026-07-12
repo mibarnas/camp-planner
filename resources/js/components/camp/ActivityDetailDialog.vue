@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Clock, Copy, LayoutList, Package, Pencil, Trash2, User as UserIcon } from '@lucide/vue';
-import { computed } from 'vue';
+import { Check, Clock, Copy, LayoutList, Link2, Package, Pencil, Trash2, User as UserIcon } from '@lucide/vue';
+import { computed, ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +34,23 @@ const category = computed(() =>
 );
 const accent = computed(() => props.activity?.color ?? category.value?.color ?? 'slate');
 const usage = computed(() => props.activity?.usage_count ?? 0);
+
+const copied = ref(false);
+async function copyShareUrl() {
+    const url = props.activity?.share_url;
+
+    if (!url) {
+return;
+}
+
+    try {
+        await navigator.clipboard.writeText(url);
+        copied.value = true;
+        setTimeout(() => (copied.value = false), 1500);
+    } catch {
+        window.prompt('Skopíruj odkaz na aktivitu:', url);
+    }
+}
 </script>
 
 <template>
@@ -91,11 +108,17 @@ const usage = computed(() => props.activity?.usage_count ?? 0);
                 </div>
             </div>
 
-            <p v-if="activity.creator || activity.created_at" class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <UserIcon class="size-3.5" />
-                <span v-if="activity.creator">Vytvoril {{ activity.creator.name }}</span>
-                <span v-if="activity.created_at">· {{ activity.created_at }}</span>
-            </p>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <p v-if="activity.creator || activity.created_at" class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <UserIcon class="size-3.5" />
+                    <span v-if="activity.creator">Vytvoril {{ activity.creator.name }}</span>
+                    <span v-if="activity.created_at">· {{ activity.created_at }}</span>
+                </p>
+                <Button v-if="activity.share_url" type="button" variant="ghost" size="sm" @click="copyShareUrl">
+                    <component :is="copied ? Check : Link2" />
+                    {{ copied ? 'Skopírované' : 'Kopírovať odkaz' }}
+                </Button>
+            </div>
 
             <DialogFooter v-if="canManage" class="sm:justify-between">
                 <Button type="button" variant="ghost" class="text-destructive" @click="emit('remove', activity)">

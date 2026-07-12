@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { CAMP_ICON_NAMES, campIcon } from '@/lib/campIcons';
+import { Label } from '@/components/ui/label';
 import { colorStyle, COLOR_NAMES } from '@/lib/campColors';
+import { CAMP_ICON_NAMES, campIcon } from '@/lib/campIcons';
 
 const icon = defineModel<string>('icon', { default: 'tent' });
 const color = defineModel<string>('color', { default: 'emerald' });

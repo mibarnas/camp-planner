@@ -5,9 +5,9 @@ import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { create as createCamp, show } from '@/routes/camps';
 import { colorStyle } from '@/lib/campColors';
 import { campIcon } from '@/lib/campIcons';
+import { create as createCamp, show } from '@/routes/camps';
 import type { CampListItem } from '@/types/camp';
 
 defineProps<{ camps: CampListItem[] }>();
@@ -22,7 +22,9 @@ function formatRange(start: string | null, end: string | null): string {
     if (!start || !end) {
         return '';
     }
+
     const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'numeric' };
+
     return `${new Date(start).toLocaleDateString('sk-SK', opts)} – ${new Date(end).toLocaleDateString('sk-SK', opts)}`;
 }
 </script>

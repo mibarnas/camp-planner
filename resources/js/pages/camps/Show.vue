@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
-import { CalendarHeart, Columns3, Copy, MapPin, Settings, Trash2, Users } from '@lucide/vue';
-import { ref, watch, watchEffect } from 'vue';
+import { CalendarHeart, Columns3, Copy, MapPin, Settings, Sparkles, Star, Trash2, Users } from '@lucide/vue';
+import { computed, ref, watch, watchEffect } from 'vue';
 import CampAppearanceFields from '@/components/camp/CampAppearanceFields.vue';
 import DayDialog from '@/components/camp/DayDialog.vue';
+import DayReviewDialog from '@/components/camp/DayReviewDialog.vue';
 import EntryDialog from '@/components/camp/EntryDialog.vue';
 import MembersDialog from '@/components/camp/MembersDialog.vue';
 import SlotsDialog from '@/components/camp/SlotsDialog.vue';
+import SummaryDialog from '@/components/camp/SummaryDialog.vue';
 import TimetableTimeline from '@/components/camp/TimetableTimeline.vue';
+import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -21,12 +24,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import InputError from '@/components/InputError.vue';
+import { colorStyle } from '@/lib/campColors';
+import { campIcon } from '@/lib/campIcons';
 import { index as campsIndex } from '@/routes/camps';
 import { destroy as destroyCamp, duplicate as duplicateCamp, fillNameDays, update as updateCamp } from '@/routes/camps';
 import { bulkDestroy, bulkUpdate, toggle as toggleEntry } from '@/routes/entries';
-import { colorStyle } from '@/lib/campColors';
-import { campIcon } from '@/lib/campIcons';
 import type {
     Activity,
     ActivityCategory,
@@ -126,9 +128,26 @@ function onEditDay(day: CampDay) {
     dayOpen.value = true;
 }
 
+// --- Day review ---
+const reviewOpen = ref(false);
+const reviewDay = ref<CampDay | null>(null);
+function onReview(day: CampDay) {
+    reviewDay.value = day;
+    reviewOpen.value = true;
+}
+// Suggest reviewing the latest day that has already happened but isn't reviewed yet.
+const todayIso = new Date().toISOString().slice(0, 10);
+const dayToReview = computed(() =>
+    [...localDays.value].reverse().find((d) => d.date <= todayIso && d.entries.length > 0 && !d.my_review),
+);
+function capitalize(v: string): string {
+    return v.charAt(0).toUpperCase() + v.slice(1);
+}
+
 // --- Other dialogs ---
 const slotsOpen = ref(false);
 const membersOpen = ref(false);
+const summaryOpen = ref(false);
 
 // --- Fill name days from the Slovak calendar ---
 function fillNames() {
@@ -169,7 +188,10 @@ function submitSettings() {
     });
 }
 function deleteCamp() {
-    if (!confirm(`Naozaj zmazať tábor „${props.camp.name}"? Táto akcia je nezvratná.`)) return;
+    if (!confirm(`Naozaj zmazať tábor „${props.camp.name}"? Táto akcia je nezvratná.`)) {
+return;
+}
+
     router.delete(destroyCamp(props.camp.id).url);
 }
 
@@ -229,6 +251,9 @@ function submitDuplicate() {
                 <Button variant="outline" size="sm" @click="membersOpen = true">
                     <Users /> Vedúci
                 </Button>
+                <Button variant="outline" size="sm" @click="summaryOpen = true">
+                    <Sparkles /> AI súhrn
+                </Button>
                 <Button variant="outline" size="sm" @click="openDuplicate">
                     <Copy /> Duplikovať
                 </Button>
@@ -238,11 +263,23 @@ function submitDuplicate() {
             </div>
         </div>
 
+        <!-- Review prompt -->
+        <div
+            v-if="dayToReview"
+            class="flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-950/30"
+        >
+            <Star class="size-5 fill-amber-400 text-amber-500" />
+            <p class="text-sm">
+                <strong>{{ capitalize(dayToReview.weekday) }} {{ dayToReview.label }}</strong> ešte nemá tvoje zhodnotenie.
+            </p>
+            <Button size="sm" class="ml-auto" @click="onReview(dayToReview)">Zhodnotiť deň</Button>
+        </div>
+
         <!-- Legend -->
         <p class="text-xs text-muted-foreground">
             Klikni do voľného miesta a pridaj aktivitu. Aktivitu <strong>potiahni</strong> pre presun,
             za pravý okraj pre zmenu dĺžky. <strong>Ctrl+klik</strong> označí viac aktivít (presúvajú sa
-            spolu), <strong>pravý klik</strong> otvorí menu.
+            spolu), <strong>pravý klik</strong> otvorí menu. <strong>⭐</strong> pri dni = zhodnoť ho.
         </p>
 
         <!-- Timetable -->
@@ -253,6 +290,7 @@ function submitDuplicate() {
             @edit="onEdit"
             @add="onAdd"
             @edit-day="onEditDay"
+            @review="onReview"
             @toggle-done="onToggleDone"
             @commit="onCommit"
             @bulk-delete="onBulkDelete"
@@ -275,7 +313,9 @@ function submitDuplicate() {
         :start-min="addStartMin"
     />
     <DayDialog v-model:open="dayOpen" :day="dayForDialog" />
+    <DayReviewDialog v-model:open="reviewOpen" :day="reviewDay" />
     <SlotsDialog v-model:open="slotsOpen" :camp-id="camp.id" :slots="slots" />
+    <SummaryDialog v-model:open="summaryOpen" :camp-id="camp.id" :days="localDays" />
     <MembersDialog
         v-model:open="membersOpen"
         :camp-id="camp.id"

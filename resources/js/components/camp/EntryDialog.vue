@@ -2,8 +2,7 @@
 import { router, useForm } from '@inertiajs/vue3';
 import { BookmarkPlus, Check, Clock, PenLine, Search, Trash2 } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
-import { destroy as destroyEntry, store as storeEntry, update as updateEntry } from '@/routes/entries';
-import { store as storeActivity } from '@/routes/activities';
+import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,9 +16,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import InputError from '@/components/InputError.vue';
 import { categoryById, colorStyle } from '@/lib/campColors';
 import { durationLabel, minToTime, timeToMin } from '@/lib/timeline';
+import { store as storeActivity } from '@/routes/activities';
+import { destroy as destroyEntry, store as storeEntry, update as updateEntry } from '@/routes/entries';
 import type { Activity, ActivityCategory, ActivityLibraryRef, CampDay, ProgramEntry } from '@/types/camp';
 
 const props = defineProps<{
@@ -57,6 +57,7 @@ const presentCategories = computed(() =>
 
 const filteredActivities = computed(() => {
     const q = search.value.trim().toLowerCase();
+
     return props.activities.filter(
         (a) =>
             (categoryFilter.value === 'all' || a.category_id === categoryFilter.value) &&
@@ -71,7 +72,10 @@ const endTime = computed(() =>
 watch(
     () => props.open,
     (open) => {
-        if (!open || !props.day) return;
+        if (!open || !props.day) {
+return;
+}
+
         const e = props.entry;
         form.clearErrors();
         form.defaults({
@@ -96,18 +100,26 @@ function pickActivity(activity: Activity) {
     if (form.activity_id === activity.id) {
         // Second click unselects -> back to a blank slate.
         form.activity_id = null;
+
         return;
     }
+
     form.activity_id = activity.id;
     form.title = activity.name;
     form.description = activity.description ?? '';
     form.materials = activity.materials ?? '';
-    if (!props.entry) form.duration = activity.default_duration;
+
+    if (!props.entry) {
+form.duration = activity.default_duration;
+}
 }
 
 function switchMode(next: 'library' | 'custom') {
     mode.value = next;
-    if (next === 'custom') form.activity_id = null;
+
+    if (next === 'custom') {
+form.activity_id = null;
+}
 }
 
 function submit() {
@@ -115,6 +127,7 @@ function submit() {
         preserveScroll: true,
         onSuccess: () => emit('update:open', false),
     };
+
     if (props.entry) {
         form.put(updateEntry(props.entry.id).url, options);
     } else {
@@ -125,8 +138,10 @@ function submit() {
 function remove() {
     if (!props.entry) {
         emit('update:open', false);
+
         return;
     }
+
     router.delete(destroyEntry(props.entry.id).url, {
         preserveScroll: true,
         onSuccess: () => emit('update:open', false),
@@ -140,7 +155,10 @@ const canSaveToLibrary = computed(
     () => !!props.library && !form.activity_id && form.title.trim().length > 0,
 );
 function saveToLibrary() {
-    if (!props.library || !canSaveToLibrary.value) return;
+    if (!props.library || !canSaveToLibrary.value) {
+return;
+}
+
     router.post(
         storeActivity().url,
         {
@@ -166,7 +184,9 @@ function saveToLibrary() {
 watch(
     () => props.open,
     (open) => {
-        if (open) savedToLibrary.value = false;
+        if (open) {
+savedToLibrary.value = false;
+}
     },
 );
 </script>

@@ -2,9 +2,7 @@
 import { router, useForm } from '@inertiajs/vue3';
 import { Check, Copy, Crown, Link2, Mail, Trash2, UserPlus } from '@lucide/vue';
 import { ref } from 'vue';
-import { destroy as destroyMember, store as storeMember } from '@/routes/members';
-import { destroy as destroyInvitation } from '@/routes/invitations';
-import { shareLink as shareLinkRoute } from '@/routes/camps';
+import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,7 +14,9 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import InputError from '@/components/InputError.vue';
+import { shareLink as shareLinkRoute } from '@/routes/camps';
+import { destroy as destroyInvitation } from '@/routes/invitations';
+import { destroy as destroyMember, store as storeMember } from '@/routes/members';
 import type { CampInvitation, CampMember, ShareLink } from '@/types/camp';
 
 const props = defineProps<{
@@ -39,15 +39,24 @@ function createShareLink() {
 }
 
 function revokeShareLink() {
-    if (!props.shareLink) return;
-    if (!confirm('Zrušiť zdieľateľný odkaz? Existujúci odkaz prestane fungovať.')) return;
+    if (!props.shareLink) {
+return;
+}
+
+    if (!confirm('Zrušiť zdieľateľný odkaz? Existujúci odkaz prestane fungovať.')) {
+return;
+}
+
     router.delete(destroyInvitation({ camp: props.campId, invitation: props.shareLink.id }).url, {
         preserveScroll: true,
     });
 }
 
 async function copyShareLink() {
-    if (!props.shareLink) return;
+    if (!props.shareLink) {
+return;
+}
+
     try {
         await navigator.clipboard.writeText(props.shareLink.link);
         shareLinkCopied.value = true;
@@ -68,6 +77,7 @@ function removeMember(member: CampMember) {
     if (!confirm(`Odobrať ${member.name} z tábora?`)) {
         return;
     }
+
     router.delete(destroyMember({ camp: props.campId, user: member.id }).url, { preserveScroll: true });
 }
 

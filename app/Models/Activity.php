@@ -6,9 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 /**
  * @property int $id
+ * @property string $share_token
  * @property int|null $activity_library_id
  * @property int|null $activity_category_id
  * @property int|null $created_by
@@ -35,6 +37,13 @@ class Activity extends Model
         'color',
         'materials',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Activity $activity) {
+            $activity->share_token ??= Str::random(24);
+        });
+    }
 
     /**
      * @return BelongsTo<ActivityLibrary, $this>
