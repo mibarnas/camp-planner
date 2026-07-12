@@ -89,21 +89,32 @@ jobs:
         working-directory: ${{ env.DEPLOY_DIR }}
         run: composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
 
-      - name: Clear old built assets
+      - name: Prepare build directory
         working-directory: ${{ env.DEPLOY_DIR }}
         run: |
           set -euo pipefail
-          rm -rf public/build
           mkdir -p public/build
           # A stray `public/hot` (left by `npm run dev`) makes @vite serve assets
           # from a dev server that isn't running in production -> blank page.
           rm -f public/hot
 
       - name: Download built assets
+        # Overlays the new hashed assets on top of the existing ones (no wipe), so
+        # a browser tab opened before this deploy can still fetch its old chunks
+        # instead of blanking. manifest.json is overwritten, so fresh loads use the
+        # new assets. Stale files are pruned below.
         uses: actions/download-artifact@v4
         with:
           name: build-assets
           path: ${{ env.DEPLOY_DIR }}/public/build
+
+      - name: Prune stale assets
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          set -euo pipefail
+          # Freshly extracted files have a current mtime; only genuinely old
+          # orphans from past deploys (7+ days) are removed.
+          find public/build -type f -mtime +7 -delete || true
 
       - name: Migrate database (with backup + auto-restore)
         working-directory: ${{ env.DEPLOY_DIR }}
