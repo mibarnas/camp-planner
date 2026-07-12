@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -15,13 +16,20 @@ return new class extends Migration
             $table->unsignedSmallInteger('duration')->default(60)->after('start_time'); // minutes
         });
 
-        // Backfill from the block each entry currently belongs to.
-        DB::statement('
-            UPDATE program_entries pe
-            JOIN time_slots ts ON pe.time_slot_id = ts.id
-            SET pe.start_time = ts.start_time,
-                pe.duration = GREATEST(TIMESTAMPDIFF(MINUTE, ts.start_time, ts.end_time), 5)
-        ');
+        // Backfill from the block each entry currently belongs to. Done in PHP so it
+        // works on every driver (the old UPDATE ... JOIN was MySQL-only and broke SQLite).
+        DB::table('time_slots')->orderBy('id')->each(function ($slot) {
+            $start = Carbon::parse($slot->start_time);
+            $end = Carbon::parse($slot->end_time);
+            $duration = max((int) abs($start->diffInMinutes($end)), 5);
+
+            DB::table('program_entries')
+                ->where('time_slot_id', $slot->id)
+                ->update([
+                    'start_time' => $slot->start_time,
+                    'duration' => $duration,
+                ]);
+        });
 
         // Entries are now positioned by time, not bound to a single block.
         // Drop the time_slot FK first; then give camp_day_id its own index so the
