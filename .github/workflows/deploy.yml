@@ -1,8 +1,13 @@
 name: deploy
 
-# Deploys to the production server by updating the checkout that lives at
-# /var/www/tabory.barnas.net. Runs on a self-hosted runner on that same box,
-# so it operates on the served directory directly (no actions/checkout).
+# Two-stage deploy:
+#   1. `build`  — runs on a GitHub-hosted runner and compiles the frontend assets.
+#                 Kept OFF the production box on purpose: `npm run build` (Vite) is
+#                 memory-hungry and, on the 4 GB server that also runs MySQL, a build
+#                 spike triggered the OOM-killer and took MySQL down.
+#   2. `deploy` — runs on the self-hosted runner ON the production box, updates the
+#                 checkout at /var/www/tabory.barnas.net, and pulls in the prebuilt
+#                 assets instead of building them locally.
 
 on:
   push:
@@ -18,7 +23,34 @@ permissions:
   contents: read
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '22'
+
+      - name: Build assets
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload built assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-assets
+          path: public/build
+          retention-days: 3
+          if-no-files-found: error
+
   deploy:
+    needs: build
     runs-on: [self-hosted]
     env:
       DEPLOY_DIR: /var/www/tabory.barnas.net
@@ -41,15 +73,21 @@ jobs:
         working-directory: ${{ env.DEPLOY_DIR }}
         run: composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
 
-      - name: Build frontend assets
+      - name: Clear old built assets
         working-directory: ${{ env.DEPLOY_DIR }}
         run: |
           set -euo pipefail
-          npm ci
-          npm run build
+          rm -rf public/build
+          mkdir -p public/build
           # A stray `public/hot` (left by `npm run dev`) makes @vite serve assets
           # from a dev server that isn't running in production -> blank page.
           rm -f public/hot
+
+      - name: Download built assets
+        uses: actions/download-artifact@v4
+        with:
+          name: build-assets
+          path: ${{ env.DEPLOY_DIR }}/public/build
 
       - name: Migrate database (with backup + auto-restore)
         working-directory: ${{ env.DEPLOY_DIR }}
