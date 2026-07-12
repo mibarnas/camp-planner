@@ -177,12 +177,19 @@ jobs:
         working-directory: ${{ env.RELEASE_DIR }}
         run: |
           set -euo pipefail
-          # These write only into THIS release's bootstrap/cache — the live release
-          # is untouched, so there is no window where a running request can read a
-          # half-written config/route cache.
-          php artisan config:cache
-          php artisan route:cache
-          php artisan view:cache
+          # view:cache writes compiled views into the SHARED storage tree
+          # (shared/storage/framework/views), and any artisan warning gets appended to
+          # shared/storage/logs/laravel.log. That tree is owned by www-data AND shared
+          # with the currently-live release, so it must stay www-data-owned and
+          # www-data-writable at all times — the deploy user (tabory) cannot write into
+          # it. So run these AS www-data: every file they create is then correctly
+          # owned for the web runtime, and Blade's request-time touch() keeps working.
+          # config/route cache write into THIS release's bootstrap/cache (owned by the
+          # deploy user), so hand that dir to www-data first.
+          sudo chown -R www-data:www-data bootstrap/cache
+          sudo -u www-data php artisan config:cache
+          sudo -u www-data php artisan route:cache
+          sudo -u www-data php artisan view:cache
 
       - name: Hand runtime-writable state to the web user
         run: |
