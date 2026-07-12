@@ -4,17 +4,17 @@ namespace App\Mail;
 
 use App\Models\CampInvitation;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Sends a camp leader their personal join link. Queued so a slow/unavailable
- * SMTP server never blocks the HTTP request that created the invitation.
+ * Sends a camp leader their personal join link. Sent synchronously during the
+ * invite request (SMTP is bounded by the mail timeout), so no queue worker is
+ * required for invitations to go out.
  */
-class CampInvitationMail extends Mailable implements ShouldQueue
+class CampInvitationMail extends Mailable
 {
     use Queueable, SerializesModels;
 
