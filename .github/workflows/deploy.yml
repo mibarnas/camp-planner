@@ -26,11 +26,16 @@ jobs:
     steps:
       - name: Pull latest code
         working-directory: ${{ env.DEPLOY_DIR }}
+        env:
+          # Automatic per-run token GitHub injects; lets us pull over HTTPS with no
+          # SSH key on the runner. Used inline below so it is never written to .git/config.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          git fetch --prune origin
-          # Deterministic deploy: match the pushed commit exactly.
-          git reset --hard "origin/${GITHUB_REF_NAME}"
+          REPO_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --prune "$REPO_URL" "${GITHUB_REF_NAME}"
+          # Deterministic deploy: check out the exact commit that was pushed.
+          git reset --hard "${GITHUB_SHA}"
 
       - name: Install PHP dependencies
         working-directory: ${{ env.DEPLOY_DIR }}
