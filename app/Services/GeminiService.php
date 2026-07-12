@@ -27,7 +27,11 @@ class GeminiService
                     ],
                     'generationConfig' => [
                         'temperature' => 0.4,
-                        'maxOutputTokens' => 1200,
+                        'maxOutputTokens' => 2048,
+                        // Gemini 2.5 Flash "thinks" by default, and those hidden tokens
+                        // count against maxOutputTokens — they were eating the whole
+                        // budget and truncating the summary. Summaries don't need it.
+                        'thinkingConfig' => ['thinkingBudget' => 0],
                     ],
                 ]);
         } catch (\Throwable $e) {
