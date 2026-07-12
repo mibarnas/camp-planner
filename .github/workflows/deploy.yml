@@ -180,6 +180,18 @@ jobs:
           php artisan route:cache
           php artisan view:cache
 
+      - name: Hand runtime-writable state to the web user
+        run: |
+          set -euo pipefail
+          # This job runs as the deploy/runner user, but Apache serves as www-data,
+          # and Blade `touch()`es its compiled view files at request time. touch()/
+          # utime requires *ownership*, not just write permission — so any compiled
+          # view left owned by the deploy user makes www-data's touch() fail with
+          # "Operation not permitted", 500-ing that page. Give the web user ownership
+          # of everything under shared/storage (compiled views, sessions, caches,
+          # logs, uploads) so it can freely rewrite them.
+          sudo chown -R www-data:www-data "${BASE_DIR}/shared/storage"
+
       - name: Go live (atomic symlink flip + opcache flush)
         run: |
           set -euo pipefail
