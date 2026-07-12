@@ -1,0 +1,86 @@
+name: deploy
+
+# Deploys to the production server by updating the checkout that lives at
+# /var/www/tabory.barnas.net. Runs on a self-hosted runner on that same box,
+# so it operates on the served directory directly (no actions/checkout).
+
+on:
+  push:
+    branches:
+      - master
+
+# Never let two deploys run at once; queue them instead of clobbering each other.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: [self-hosted]
+    env:
+      DEPLOY_DIR: /var/www/tabory.barnas.net
+
+    steps:
+      - name: Pull latest code
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          set -euo pipefail
+          git fetch --prune origin
+          # Deterministic deploy: match the pushed commit exactly.
+          git reset --hard "origin/${GITHUB_REF_NAME}"
+
+      - name: Install PHP dependencies
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+
+      - name: Build frontend assets
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+
+      - name: Migrate database (with backup + auto-restore)
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          set -euo pipefail
+
+          # Read DB credentials straight from the deployed .env, stripping any quotes.
+          get_env() { grep -E "^$1=" .env | head -1 | cut -d '=' -f2- | sed -e 's/^["'\'']//' -e 's/["'\'']$//'; }
+          DB_DATABASE=$(get_env DB_DATABASE)
+          DB_USERNAME=$(get_env DB_USERNAME)
+          DB_PASSWORD=$(get_env DB_PASSWORD)
+          DB_HOST=$(get_env DB_HOST); DB_HOST=${DB_HOST:-127.0.0.1}
+          DB_PORT=$(get_env DB_PORT); DB_PORT=${DB_PORT:-3306}
+
+          BACKUP_DIR=storage/app/backups
+          mkdir -p "$BACKUP_DIR"
+          BACKUP_FILE="$BACKUP_DIR/pre-migrate-$(date +%Y%m%d-%H%M%S).sql"
+
+          echo "Backing up '$DB_DATABASE' to $BACKUP_FILE before migrating..."
+          mysqldump --no-tablespaces --single-transaction --routines --triggers \
+            -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USERNAME" -p"$DB_PASSWORD" \
+            "$DB_DATABASE" > "$BACKUP_FILE"
+
+          # If the migration fails, restore the pre-migration snapshot so the
+          # database is never left half-migrated, then fail the deploy.
+          if ! php artisan migrate --force; then
+            echo "::error::Migration failed — restoring database from $BACKUP_FILE"
+            mysql -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USERNAME" -p"$DB_PASSWORD" \
+              "$DB_DATABASE" < "$BACKUP_FILE"
+            exit 1
+          fi
+
+          # Prune backups older than 30 days.
+          find "$BACKUP_DIR" -name 'pre-migrate-*.sql' -mtime +30 -delete || true
+
+      - name: Rebuild caches
+        working-directory: ${{ env.DEPLOY_DIR }}
+        run: |
+          set -euo pipefail
+          php artisan config:cache
+          php artisan route:cache
+          php artisan view:cache
