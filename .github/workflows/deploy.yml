@@ -47,6 +47,9 @@ jobs:
           set -euo pipefail
           npm ci
           npm run build
+          # A stray `public/hot` (left by `npm run dev`) makes @vite serve assets
+          # from a dev server that isn't running in production -> blank page.
+          rm -f public/hot
 
       - name: Migrate database (with backup + auto-restore)
         working-directory: ${{ env.DEPLOY_DIR }}
