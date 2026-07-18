@@ -51,7 +51,7 @@ jobs:
           tools: composer:v2
 
       - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
           node-version: '22'
 
@@ -71,7 +71,7 @@ jobs:
           npm run build
 
       - name: Upload built assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-assets
           path: public/build
@@ -129,7 +129,7 @@ jobs:
 
       - name: Download built assets
         # Land the prebuilt Vite assets straight into this release's public/build.
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-assets
           path: ${{ env.RELEASE_DIR }}/public/build
