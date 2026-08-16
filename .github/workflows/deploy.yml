@@ -20,6 +20,10 @@ name: deploy
 #     shared/storage/            persistent logs/uploads/sessions (symlinked in)
 #     current -> releases/<...>  the symlink Apache's DocumentRoot points at
 #
+# Apache serves static files itself and hands .php to PHP-FPM over proxy_fcgi, so
+# a deploy has to recycle BOTH services — see the "Go live" step for why reloading
+# only Apache leaves the previous release running.
+#
 # Apache DocumentRoot must be /var/www/tabory.barnas.net/current/public.
 
 on:
@@ -203,7 +207,7 @@ jobs:
           # logs, uploads) so it can freely rewrite them.
           sudo chown -R www-data:www-data "${BASE_DIR}/shared/storage"
 
-      - name: Go live (atomic symlink flip + opcache flush)
+      - name: Go live (atomic symlink flip + web/PHP-FPM reload)
         run: |
           set -euo pipefail
           # Atomic swap: build the new symlink under a temp name, then rename it
@@ -212,10 +216,18 @@ jobs:
           ln -sfn "${RELEASE_DIR}" "${BASE_DIR}/current.tmp"
           mv -Tf "${BASE_DIR}/current.tmp" "${BASE_DIR}/current"
 
-          # PHP runs as Apache mod_php and opcache caches by resolved path, so
-          # recycle the workers to guarantee they serve the new release with a
-          # clean opcache. Graceful: in-flight requests finish on the old workers.
           sudo systemctl reload apache2
+
+          # PHP runs under PHP-FPM (Apache proxies .php via proxy_fcgi), which is a
+          # SEPARATE service — reloading Apache does nothing to it. FPM's opcache
+          # keys entries by the requested path and, with the default
+          # opcache.revalidate_path=0, never re-resolves the `current` symlink. Since
+          # DocumentRoot reaches every release through that same stable path, FPM
+          # keeps executing the PREVIOUS release's files after the flip: the site
+          # renders old Vite asset hashes whose files no longer exist, so every
+          # script/stylesheet 404s. Reloading FPM re-creates its opcache. Graceful
+          # (SIGUSR2), so no request is dropped.
+          sudo systemctl reload php8.5-fpm
 
           # Signal the queue worker (started against .../current/artisan) to
           # restart so it picks up the new code. Harmless if none is running.
