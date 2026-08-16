@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $location
  * @property Carbon $start_date
  * @property Carbon $end_date
+ * @property Carbon|null $schedule_locked_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Pivot|null $pivot
@@ -40,6 +41,7 @@ class Camp extends Model
         'location',
         'start_date',
         'end_date',
+        'schedule_locked_at',
     ];
 
     /**
@@ -50,6 +52,7 @@ class Camp extends Model
         return [
             'start_date' => 'date',
             'end_date' => 'date',
+            'schedule_locked_at' => 'datetime',
         ];
     }
 
@@ -96,11 +99,28 @@ class Camp extends Model
     }
 
     /**
+     * @return HasMany<PlanVersion, $this>
+     */
+    public function planVersions(): HasMany
+    {
+        return $this->hasMany(PlanVersion::class);
+    }
+
+    /**
      * @return BelongsTo<ActivityLibrary, $this>
      */
     public function activityLibrary(): BelongsTo
     {
         return $this->belongsTo(ActivityLibrary::class, 'activity_library_id');
+    }
+
+    /**
+     * While the schedule is frozen nobody — the owner included — may move the
+     * program around; day notes and reviews stay editable.
+     */
+    public function isScheduleLocked(): bool
+    {
+        return $this->schedule_locked_at !== null;
     }
 
     public function hasMember(User $user): bool

@@ -29,7 +29,7 @@ class ProgramEntryController extends Controller
         ]);
 
         $day = CampDay::findOrFail((int) $data['camp_day_id']);
-        $this->authorize('update', $day->camp);
+        $this->authorize('editSchedule', $day->camp);
 
         // Prefill title/description/materials from the chosen activity if empty.
         if (! empty($data['activity_id'])) {
@@ -60,7 +60,7 @@ class ProgramEntryController extends Controller
      */
     public function update(Request $request, ProgramEntry $entry): RedirectResponse
     {
-        $this->authorize('update', $entry->day->camp);
+        $this->authorize('editSchedule', $entry->day->camp);
 
         $data = $request->validate([
             'activity_id' => ['sometimes', 'nullable', 'exists:activities,id'],
@@ -71,6 +71,7 @@ class ProgramEntryController extends Controller
             'responsible' => ['sometimes', 'nullable', 'string', 'max:255'],
             'materials' => ['sometimes', 'nullable', 'string'],
             'notes' => ['sometimes', 'nullable', 'string'],
+            'status' => ['sometimes', 'in:todo,none,done'],
         ]);
 
         $entry->update($data);
@@ -99,7 +100,7 @@ class ProgramEntryController extends Controller
             if (! $entry) {
                 continue;
             }
-            $this->authorize('update', $entry->day->camp);
+            $this->authorize('editSchedule', $entry->day->camp);
             $entry->update(Arr::only($item, ['start_time', 'duration', 'responsible']));
         }
 
@@ -119,7 +120,7 @@ class ProgramEntryController extends Controller
         $entries = ProgramEntry::with('day.camp')->findMany($data['ids']);
 
         foreach ($entries as $entry) {
-            $this->authorize('update', $entry->day->camp);
+            $this->authorize('editSchedule', $entry->day->camp);
             $entry->delete();
         }
 
@@ -129,18 +130,26 @@ class ProgramEntryController extends Controller
         ]);
     }
 
-    public function toggle(ProgramEntry $entry): RedirectResponse
+    /**
+     * Set an entry's progress state. Idempotent (rather than cycling) so a
+     * double tap can't overshoot; the UI decides what the next state is.
+     */
+    public function setStatus(Request $request, ProgramEntry $entry): RedirectResponse
     {
-        $this->authorize('update', $entry->day->camp);
+        $this->authorize('editSchedule', $entry->day->camp);
 
-        $entry->update(['is_done' => ! $entry->is_done]);
+        $data = $request->validate([
+            'status' => ['required', 'in:todo,none,done'],
+        ]);
+
+        $entry->update($data);
 
         return back();
     }
 
     public function destroy(ProgramEntry $entry): RedirectResponse
     {
-        $this->authorize('update', $entry->day->camp);
+        $this->authorize('editSchedule', $entry->day->camp);
 
         $entry->delete();
 

@@ -8,9 +8,11 @@ use App\Http\Controllers\CampDayController;
 use App\Http\Controllers\CampMemberController;
 use App\Http\Controllers\DayReviewController;
 use App\Http\Controllers\InvitationController;
+use App\Http\Controllers\PlanVersionController;
 use App\Http\Controllers\ProgramEntryController;
 use App\Http\Controllers\SummaryController;
 use App\Http\Controllers\TimeSlotController;
+use App\Http\Controllers\TimeSlotOverrideController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
@@ -43,6 +45,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('camps/{camp}', [CampController::class, 'destroy'])->name('camps.destroy');
     Route::post('camps/{camp}/duplicate', [CampController::class, 'duplicate'])->name('camps.duplicate');
     Route::post('camps/{camp}/fill-name-days', [CampController::class, 'fillNameDays'])->name('camps.fillNameDays');
+    Route::post('camps/{camp}/lock', [CampController::class, 'lock'])->name('camps.lock');
+    Route::delete('camps/{camp}/lock', [CampController::class, 'unlock'])->name('camps.unlock');
     Route::post('camps/{camp}/summary', [SummaryController::class, 'camp'])->name('camps.summary');
     Route::post('days/{day}/summary', [SummaryController::class, 'day'])->name('days.summary');
 
@@ -55,12 +59,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('slots/{slot}', [TimeSlotController::class, 'update'])->name('slots.update');
     Route::delete('slots/{slot}', [TimeSlotController::class, 'destroy'])->name('slots.destroy');
 
+    // Per-day deviations from the daily skeleton (moved/hidden on one day only)
+    Route::put('days/{day}/slots/{slot}/override', [TimeSlotOverrideController::class, 'upsert'])->name('slotOverrides.upsert');
+    Route::delete('days/{day}/slots/{slot}/override', [TimeSlotOverrideController::class, 'destroy'])->name('slotOverrides.destroy');
+
+    // Saved snapshots of the whole schedule
+    Route::post('camps/{camp}/versions', [PlanVersionController::class, 'store'])->name('versions.store');
+    // The parameter name drives the scoped lookup: {planVersion} -> Camp::planVersions()
+    Route::post('camps/{camp}/versions/{planVersion}/restore', [PlanVersionController::class, 'restore'])
+        ->scopeBindings()->name('versions.restore');
+    Route::delete('camps/{camp}/versions/{planVersion}', [PlanVersionController::class, 'destroy'])
+        ->scopeBindings()->name('versions.destroy');
+
     // Program entries (time-positioned activities)
     Route::post('program-entries', [ProgramEntryController::class, 'store'])->name('entries.store');
     Route::put('program-entries/bulk', [ProgramEntryController::class, 'bulkUpdate'])->name('entries.bulkUpdate');
     Route::post('program-entries/bulk-delete', [ProgramEntryController::class, 'bulkDestroy'])->name('entries.bulkDestroy');
     Route::put('program-entries/{entry}', [ProgramEntryController::class, 'update'])->name('entries.update');
-    Route::put('program-entries/{entry}/toggle', [ProgramEntryController::class, 'toggle'])->name('entries.toggle');
+    Route::put('program-entries/{entry}/status', [ProgramEntryController::class, 'setStatus'])->name('entries.setStatus');
     Route::delete('program-entries/{entry}', [ProgramEntryController::class, 'destroy'])->name('entries.destroy');
 
     // Members & invitations

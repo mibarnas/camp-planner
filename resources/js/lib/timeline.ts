@@ -1,4 +1,4 @@
-import type { ProgramEntry, TimeSlot } from '@/types/camp';
+import type { EffectiveSlot, ProgramEntry, SlotOverride, TimeSlot } from '@/types/camp';
 
 /** 'HH:MM' -> minutes since midnight. */
 export function timeToMin(t: string): number {
@@ -32,13 +32,44 @@ return `${h} h`;
     return `${m} min`;
 }
 
+/**
+ * The camp-wide blocks as they apply to one day: an override moves, resizes or
+ * hides a block for that day alone, and null times fall back to the template.
+ */
+export function effectiveSlots(
+    slots: TimeSlot[],
+    day: { slot_overrides?: SlotOverride[] },
+): EffectiveSlot[] {
+    const overrides = new Map((day.slot_overrides ?? []).map((o) => [o.time_slot_id, o]));
+
+    return slots.map((slot) => {
+        const o = overrides.get(slot.id);
+
+        if (!o) {
+            return { ...slot, overridden: false, hidden: false };
+        }
+
+        return {
+            ...slot,
+            start_time: o.start_time ?? slot.start_time,
+            end_time: o.end_time ?? slot.end_time,
+            overridden: true,
+            hidden: o.is_hidden,
+        };
+    });
+}
+
 export type DayBounds = { start: number; end: number };
 
 /**
  * Overall visible time window: from the start of the first block to the end of
- * the last one (stretched further only if an activity sticks out).
+ * the last one (stretched further only if an activity or a day's moved block
+ * sticks out).
  */
-export function dayBounds(slots: TimeSlot[], days: { entries: ProgramEntry[] }[]): DayBounds {
+export function dayBounds(
+    slots: TimeSlot[],
+    days: { entries: ProgramEntry[]; slot_overrides?: SlotOverride[] }[],
+): DayBounds {
     let start = Infinity;
     let end = -Infinity;
 
@@ -51,6 +82,20 @@ export function dayBounds(slots: TimeSlot[], days: { entries: ProgramEntry[] }[]
         for (const e of d.entries) {
             start = Math.min(start, timeToMin(e.start_time));
             end = Math.max(end, timeToMin(e.start_time) + e.duration);
+        }
+
+        for (const o of d.slot_overrides ?? []) {
+            if (o.is_hidden) {
+                continue;
+            }
+
+            if (o.start_time) {
+                start = Math.min(start, timeToMin(o.start_time));
+            }
+
+            if (o.end_time) {
+                end = Math.max(end, timeToMin(o.end_time));
+            }
         }
     }
 

@@ -2,10 +2,13 @@
 import {
     Check,
     CheckSquare,
+    Eye,
+    EyeOff,
     MapPin,
     Package,
     Pencil,
     Plus,
+    RotateCcw,
     Star,
     StickyNote,
     Trash2,
@@ -24,22 +27,36 @@ import {
     containingSlot,
     dayBounds,
     durationLabel,
+    effectiveSlots,
     minToTime,
     timeToMin,
 } from '@/lib/timeline';
-import type { CampDay, ProgramEntry, TimeSlot } from '@/types/camp';
+import type {
+    CampDay,
+    EffectiveSlot,
+    EntryStatus,
+    ProgramEntry,
+    SlotOverride,
+    SlotOverridePatch,
+    TimeSlot,
+} from '@/types/camp';
 
-const props = defineProps<{ days: CampDay[]; slots: TimeSlot[] }>();
+const props = withDefaults(
+    defineProps<{ days: CampDay[]; slots: TimeSlot[]; editable?: boolean }>(),
+    { editable: true },
+);
 
 const emit = defineEmits<{
     edit: [day: CampDay, entry: ProgramEntry];
     add: [day: CampDay, startMin: number];
     editDay: [day: CampDay];
     review: [day: CampDay];
-    toggleDone: [entry: ProgramEntry];
+    setStatus: [entry: ProgramEntry, status: EntryStatus];
     commit: [entries: ProgramEntry[]];
     bulkDelete: [ids: number[]];
     bulkResponsible: [ids: number[], responsible: string];
+    slotOverride: [day: CampDay, slot: EffectiveSlot, patch: SlotOverridePatch];
+    slotOverrideReset: [day: CampDay, slot: EffectiveSlot];
 }>();
 
 // --- Layout: px-per-minute stretches to fill the available width -------------
@@ -141,20 +158,29 @@ function capitalize(v: string): string {
     return v.charAt(0).toUpperCase() + v.slice(1);
 }
 
+// Each day gets the camp skeleton as it actually applies to it: blocks moved or
+// hidden for that day only, the rest straight from the template.
 const layout = computed(() =>
     props.days.map((day) => {
         const { items, lanes } = assignLanes(day.entries);
+        const slots = effectiveSlots(props.slots, day);
 
-        return { day, items, height: lanes * LANE_H + PAD * 2 };
+        return {
+            day,
+            items,
+            slots: slots.filter((s) => !s.hidden),
+            hiddenSlots: slots.filter((s) => s.hidden),
+            height: lanes * LANE_H + PAD * 2,
+        };
     }),
 );
 
 const allEntries = computed(() => props.days.flatMap((d) => d.entries));
 
-function cardColor(entry: ProgramEntry): string {
+function cardColor(entry: ProgramEntry, slots: EffectiveSlot[]): string {
     return (
         entry.activity?.color ??
-        containingSlot(timeToMin(entry.start_time), props.slots)?.color ??
+        containingSlot(timeToMin(entry.start_time), slots)?.color ??
         'slate'
     );
 }
@@ -175,6 +201,23 @@ lines.push(`Poznámka: ${entry.notes}`);
 }
 
     return lines.join('\n');
+}
+
+// --- Progress state ------------------------------------------------------------
+const STATUS_LABELS: Record<EntryStatus, string> = {
+    todo: 'treba doriešiť',
+    none: 'rozpracované',
+    done: 'hotové',
+};
+const OTHER_STATUSES: EntryStatus[] = ['done', 'none', 'todo'];
+
+function statusTitle(entry: ProgramEntry): string {
+    return `Stav: ${STATUS_LABELS[entry.status]}${props.editable ? ' — klikni pre prepnutie hotové/rozpracované' : ''}`;
+}
+// A quick tap only flips between done and in-progress; "treba doriešiť" is
+// deliberate enough to belong in the menu or the dialog.
+function cycleStatus(entry: ProgramEntry) {
+    emit('setStatus', entry, entry.status === 'done' ? 'none' : 'done');
 }
 
 // --- Selection ----------------------------------------------------------------
@@ -232,16 +275,34 @@ type ContextMenuState = {
     y: number;
     day: CampDay;
     entry: ProgramEntry | null;
+    slot: EffectiveSlot | null;
     startMin: number;
 };
 const contextMenu = ref<ContextMenuState | null>(null);
 
 function openCardMenu(e: MouseEvent, day: CampDay, entry: ProgramEntry) {
+    if (!props.editable) {
+return;
+}
+
     e.preventDefault();
     e.stopPropagation();
-    contextMenu.value = { x: e.clientX, y: e.clientY, day, entry, startMin: 0 };
+    contextMenu.value = { x: e.clientX, y: e.clientY, day, entry, slot: null, startMin: 0 };
+}
+function openSlotMenu(e: MouseEvent, day: CampDay, slot: EffectiveSlot) {
+    if (!props.editable) {
+return;
+}
+
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenu.value = { x: e.clientX, y: e.clientY, day, entry: null, slot, startMin: 0 };
 }
 function openTrackMenu(e: MouseEvent, day: CampDay) {
+    if (!props.editable) {
+return;
+}
+
     if ((e.target as HTMLElement).closest('[data-card]')) {
 return;
 }
@@ -249,7 +310,7 @@ return;
     e.preventDefault();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const min = snap(bounds.value.start + (e.clientX - rect.left) / pxPerMin.value);
-    contextMenu.value = { x: e.clientX, y: e.clientY, day, entry: null, startMin: min };
+    contextMenu.value = { x: e.clientX, y: e.clientY, day, entry: null, slot: null, startMin: min };
 }
 function closeMenu() {
     contextMenu.value = null;
@@ -272,11 +333,11 @@ toggleSelect(m.entry);
 
     closeMenu();
 }
-function menuToggleDone() {
+function menuSetStatus(status: EntryStatus) {
     const m = contextMenu.value;
 
     if (m?.entry) {
-emit('toggleDone', m.entry);
+emit('setStatus', m.entry, status);
 }
 
     closeMenu();
@@ -306,6 +367,86 @@ emit('add', m.day, m.startMin);
 
     closeMenu();
 }
+function menuSlotHidden(isHidden: boolean) {
+    const m = contextMenu.value;
+
+    if (m?.slot) {
+        setLocalOverride(m.day, m.slot.id, { is_hidden: isHidden });
+        emit('slotOverride', m.day, m.slot, { is_hidden: isHidden });
+    }
+
+    closeMenu();
+}
+function menuSlotReset() {
+    const m = contextMenu.value;
+
+    if (m?.slot) {
+        removeLocalOverride(m.day, m.slot.id);
+        emit('slotOverrideReset', m.day, m.slot);
+    }
+
+    closeMenu();
+}
+
+// --- Per-day block overrides ----------------------------------------------------
+// The day list is the page's own mutable copy, so the drag can write straight
+// into it for instant feedback; the server call follows on pointerup.
+function findOverride(day: CampDay, slotId: number): SlotOverride | undefined {
+    return day.slot_overrides?.find((o) => o.time_slot_id === slotId);
+}
+
+function setLocalOverride(day: CampDay, slotId: number, patch: SlotOverridePatch) {
+    if (!day.slot_overrides) {
+        day.slot_overrides = [];
+    }
+
+    const existing = findOverride(day, slotId);
+
+    if (existing) {
+        Object.assign(existing, patch);
+
+        return;
+    }
+
+    day.slot_overrides.push({
+        time_slot_id: slotId,
+        start_time: null,
+        end_time: null,
+        is_hidden: false,
+        ...patch,
+    });
+}
+
+function removeLocalOverride(day: CampDay, slotId: number) {
+    const i = day.slot_overrides?.findIndex((o) => o.time_slot_id === slotId) ?? -1;
+
+    if (i >= 0) {
+        day.slot_overrides.splice(i, 1);
+    }
+}
+
+function restoreLocalOverride(day: CampDay, slotId: number, original: SlotOverride | null) {
+    removeLocalOverride(day, slotId);
+
+    if (original) {
+        day.slot_overrides.push({ ...original });
+    }
+}
+
+function slotTooltip(slot: EffectiveSlot): string {
+    const lines = [slot.name, `${slot.start_time}–${slot.end_time}`];
+
+    if (slot.overridden) {
+        const template = props.slots.find((s) => s.id === slot.id);
+        lines.push(
+            template
+                ? `Upravené pre tento deň (šablóna ${template.start_time}–${template.end_time})`
+                : 'Upravené pre tento deň',
+        );
+    }
+
+    return lines.join('\n');
+}
 
 // --- Drag / resize (single card or whole selection) ----------------------------
 type DragState = {
@@ -320,8 +461,34 @@ type DragState = {
 };
 const drag = ref<DragState | null>(null);
 
+type SlotDragState = {
+    day: CampDay;
+    slot: EffectiveSlot;
+    mode: 'move' | 'resize';
+    startX: number;
+    origStart: number;
+    origEnd: number;
+    curStart: number;
+    curEnd: number;
+    original: SlotOverride | null;
+    moved: boolean;
+};
+const slotDrag = ref<SlotDragState | null>(null);
+
+// A finished drag must not also count as a click on the track (which would add
+// an activity where the block was just dropped).
+let justDragged = false;
+
 function snap(min: number): number {
     return Math.round(min / SNAP) * SNAP;
+}
+
+function capturePointer(e: PointerEvent) {
+    try {
+        (e.currentTarget as HTMLElement | null)?.setPointerCapture(e.pointerId);
+    } catch {
+        // Pointer capture is a nicety; dragging still works without it.
+    }
 }
 
 function onPointerMove(e: PointerEvent) {
@@ -355,6 +522,10 @@ return;
 } // left button only; right button = context menu
 
     if ((e.target as HTMLElement).closest('[data-nodrag]')) {
+return;
+}
+
+    if (!props.editable) {
 return;
 }
 
@@ -393,10 +564,17 @@ return;
         moved: false,
     };
 
-    const onUp = () => {
-        const d = drag.value;
+    capturePointer(e);
+
+    const detach = () => {
         window.removeEventListener('pointermove', onPointerMove);
         window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onCancel);
+    };
+
+    const onUp = () => {
+        const d = drag.value;
+        detach();
 
         if (!d) {
 return;
@@ -411,15 +589,148 @@ return;
         drag.value = null;
     };
 
+    // The browser took the gesture away (scroll, an incoming call): put the
+    // card back where it started rather than saving a half-finished move.
+    const onCancel = () => {
+        const d = drag.value;
+        detach();
+
+        if (!d) {
+return;
+}
+
+        for (const g of d.group) {
+            g.entry.start_time = minToTime(g.origStart);
+        }
+
+        d.entry.duration = d.origDur;
+        drag.value = null;
+    };
+
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+}
+
+function onSlotPointerMove(e: PointerEvent) {
+    const d = slotDrag.value;
+
+    if (!d) {
+return;
+}
+
+    const deltaMin = snap((e.clientX - d.startX) / pxPerMin.value);
+
+    if (Math.abs(deltaMin) < SNAP) {
+return;
+}
+
+    d.moved = true;
+
+    if (d.mode === 'move') {
+        const span = d.origEnd - d.origStart;
+        const clamped = Math.max(
+            bounds.value.start,
+            Math.min(bounds.value.end - span, d.origStart + deltaMin),
+        );
+        d.curStart = clamped;
+        d.curEnd = clamped + span;
+    } else {
+        d.curEnd = Math.max(
+            d.origStart + SNAP,
+            Math.min(bounds.value.end, d.origEnd + deltaMin),
+        );
+    }
+
+    setLocalOverride(d.day, d.slot.id, {
+        start_time: minToTime(d.curStart),
+        end_time: minToTime(d.curEnd),
+    });
+}
+
+function beginSlotDrag(e: PointerEvent, slot: EffectiveSlot, day: CampDay) {
+    if (e.button !== 0 || !props.editable) {
+return;
+}
+
+    const mode = (e.target as HTMLElement).closest('[data-slotresize]') ? 'resize' : 'move';
+    const origStart = timeToMin(slot.start_time);
+    const origEnd = timeToMin(slot.end_time);
+    const existing = findOverride(day, slot.id);
+
+    slotDrag.value = {
+        day,
+        slot,
+        mode,
+        startX: e.clientX,
+        origStart,
+        origEnd,
+        curStart: origStart,
+        curEnd: origEnd,
+        original: existing ? { ...existing } : null,
+        moved: false,
+    };
+
+    capturePointer(e);
+
+    const detach = () => {
+        window.removeEventListener('pointermove', onSlotPointerMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onCancel);
+    };
+
+    const onUp = () => {
+        const d = slotDrag.value;
+        detach();
+        slotDrag.value = null;
+
+        if (!d?.moved) {
+return;
+}
+
+        justDragged = true;
+        setTimeout(() => (justDragged = false), 0);
+
+        emit('slotOverride', d.day, d.slot, {
+            start_time: minToTime(d.curStart),
+            end_time: minToTime(d.curEnd),
+        });
+    };
+
+    const onCancel = () => {
+        const d = slotDrag.value;
+        detach();
+        slotDrag.value = null;
+
+        if (d) {
+            restoreLocalOverride(d.day, d.slot.id, d.original);
+        }
+    };
+
+    window.addEventListener('pointermove', onSlotPointerMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+}
+
+// Read-only mode still opens the dialog so details stay reachable; when editing
+// is on, the pointerup path already emits `edit` for a click that didn't move.
+function onCardClick(day: CampDay, entry: ProgramEntry) {
+    if (!props.editable) {
+        emit('edit', day, entry);
+    }
 }
 
 // Click on empty track: clear selection first; if nothing selected, add here.
 function onTrackClick(e: MouseEvent, day: CampDay) {
-    if (drag.value) {
+    if (drag.value || slotDrag.value || !props.editable) {
 return;
 }
+
+    if (justDragged) {
+        justDragged = false;
+
+        return;
+    }
 
     if ((e.target as HTMLElement).closest('[data-card]')) {
 return;
@@ -491,7 +802,7 @@ return;
 
         <div ref="wrapEl" class="overflow-x-auto rounded-xl border bg-card select-none">
             <div :style="{ minWidth: LABEL_W + trackWidth + 'px' }">
-                <!-- Header: hour ruler + block guides -->
+                <!-- Header: hour ruler + block guides (the camp-wide template) -->
                 <div class="sticky top-0 z-30 flex border-b bg-muted/80 backdrop-blur">
                     <div
                         class="sticky left-0 z-10 flex shrink-0 items-end bg-muted/80 p-2 text-xs font-medium text-muted-foreground backdrop-blur"
@@ -605,12 +916,26 @@ return;
                         @click="onTrackClick($event, row.day)"
                         @contextmenu="openTrackMenu($event, row.day)"
                     >
+                        <!-- Daily blocks as they apply to this day -->
                         <div
-                            v-for="slot in slots"
+                            v-for="slot in row.slots"
                             :key="'bg' + slot.id"
-                            class="absolute top-0 bottom-0 border-l border-dashed"
-                            :class="[colorStyle(slot.color).cell, slot.kind === 'fixed' ? 'opacity-90' : 'opacity-40']"
-                            :style="{ left: xFor(timeToMin(slot.start_time)) + 'px', width: wFor(timeToMin(slot.end_time) - timeToMin(slot.start_time)) + 'px' }"
+                            data-slotband
+                            class="absolute top-0 bottom-0 border-l"
+                            :class="[
+                                colorStyle(slot.color).cell,
+                                slot.kind === 'fixed' ? 'opacity-90' : 'opacity-40',
+                                slot.overridden ? 'border-solid ring-1 ring-inset ring-foreground/25' : 'border-dashed',
+                                editable ? 'cursor-grab active:cursor-grabbing' : '',
+                            ]"
+                            :style="{
+                                left: xFor(timeToMin(slot.start_time)) + 'px',
+                                width: wFor(timeToMin(slot.end_time) - timeToMin(slot.start_time)) + 'px',
+                                touchAction: editable ? 'none' : 'auto',
+                            }"
+                            :title="slotTooltip(slot)"
+                            @pointerdown="beginSlotDrag($event, slot, row.day)"
+                            @contextmenu="openSlotMenu($event, row.day, slot)"
                         >
                             <span
                                 v-if="slot.kind === 'fixed'"
@@ -618,7 +943,30 @@ return;
                             >
                                 {{ slot.name }}
                             </span>
+                            <div
+                                v-if="editable"
+                                data-slotresize
+                                class="absolute top-0 right-0 bottom-0 w-2 cursor-ew-resize hover:bg-foreground/10"
+                                title="Potiahni pre zmenu dĺžky bloku (len tento deň)"
+                            />
                         </div>
+
+                        <!-- Blocks hidden on this day, kept as a thin strip so they can come back -->
+                        <div
+                            v-for="slot in row.hiddenSlots"
+                            :key="'hid' + slot.id"
+                            data-slotband
+                            class="absolute top-0 h-1 rounded-b border-x border-b border-dashed opacity-70"
+                            :class="colorStyle(slot.color).cell"
+                            :style="{
+                                left: xFor(timeToMin(slot.start_time)) + 'px',
+                                width: wFor(timeToMin(slot.end_time) - timeToMin(slot.start_time)) + 'px',
+                            }"
+                            :title="`${slot.name} — v tomto dni skrytý (pravý klik pre zobrazenie)`"
+                            @click.stop
+                            @contextmenu="openSlotMenu($event, row.day, slot)"
+                        />
+
                         <div
                             v-for="t in hourTicks"
                             :key="'g' + t"
@@ -631,18 +979,27 @@ return;
                             v-for="item in row.items"
                             :key="item.entry.id"
                             data-card
-                            class="absolute flex cursor-grab flex-col overflow-hidden rounded-md border-l-4 border shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing"
-                            :class="[colorStyle(cardColor(item.entry)).cell, isSelected(item.entry) ? 'ring-2 ring-primary' : '']"
+                            class="absolute flex flex-col overflow-hidden rounded-md border-l-4 border shadow-sm transition-shadow hover:shadow-md"
+                            :class="[
+                                colorStyle(cardColor(item.entry, row.slots)).cell,
+                                editable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
+                                isSelected(item.entry)
+                                    ? 'ring-2 ring-primary'
+                                    : item.entry.status === 'todo'
+                                      ? 'ring-1 ring-amber-500/70'
+                                      : '',
+                            ]"
                             :style="{
                                 left: xFor(timeToMin(item.entry.start_time)) + 'px',
                                 width: Math.max(24, wFor(item.entry.duration) - 2) + 'px',
                                 top: PAD + item.lane * LANE_H + 'px',
                                 height: LANE_H - CARD_GAP + 'px',
+                                touchAction: editable ? 'none' : 'auto',
                             }"
                             :title="cardTooltip(item.entry)"
                             @pointerdown="beginDrag($event, item.entry, row.day)"
                             @contextmenu="openCardMenu($event, row.day, item.entry)"
-                            @click.stop
+                            @click.stop="onCardClick(row.day, item.entry)"
                         >
                             <div class="flex items-start justify-between gap-1 px-1.5 pt-1">
                                 <span class="truncate text-xs font-semibold leading-tight">
@@ -650,13 +1007,21 @@ return;
                                 </span>
                                 <span
                                     data-nodrag
-                                    class="mt-0.5 flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-full border"
-                                    :class="item.entry.is_done ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-muted-foreground/40 bg-background/50'"
-                                    title="Hotovo / rozpracované"
-                                    @click.stop="emit('toggleDone', item.entry)"
+                                    class="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border"
+                                    :class="[
+                                        editable ? 'cursor-pointer' : '',
+                                        item.entry.status === 'done'
+                                            ? 'border-emerald-500 bg-emerald-500 text-white'
+                                            : item.entry.status === 'todo'
+                                              ? 'border-amber-500 bg-amber-500 text-white'
+                                              : 'border-muted-foreground/40 bg-background/50',
+                                    ]"
+                                    :title="statusTitle(item.entry)"
+                                    @click.stop="editable && cycleStatus(item.entry)"
                                     @pointerdown.stop
                                 >
-                                    <Check v-if="item.entry.is_done" class="size-3" />
+                                    <Check v-if="item.entry.status === 'done'" class="size-3" />
+                                    <span v-else-if="item.entry.status === 'todo'" class="text-[9px] leading-none font-bold">!</span>
                                 </span>
                             </div>
                             <div class="flex items-center gap-1 truncate px-1.5 text-[10px] text-muted-foreground">
@@ -684,6 +1049,7 @@ return;
                             </span>
 
                             <div
+                                v-if="editable"
                                 data-resize
                                 class="absolute top-0 right-0 bottom-0 w-2 cursor-ew-resize hover:bg-foreground/10"
                                 title="Potiahni pre zmenu dĺžky"
@@ -709,9 +1075,14 @@ return;
                         <CheckSquare class="size-4" />
                         {{ isSelected(contextMenu.entry) ? 'Odznačiť' : 'Označiť' }}
                     </button>
-                    <button class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent" @click="menuToggleDone">
-                        <Check class="size-4" />
-                        {{ contextMenu.entry.is_done ? 'Označiť ako rozpracované' : 'Označiť ako hotové' }}
+                    <div class="my-1 h-px bg-border" />
+                    <button
+                        v-for="s in OTHER_STATUSES.filter((s) => s !== contextMenu!.entry!.status)"
+                        :key="s"
+                        class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                        @click="menuSetStatus(s)"
+                    >
+                        <Check class="size-4" /> Označiť ako {{ STATUS_LABELS[s] }}
                     </button>
                     <div class="my-1 h-px bg-border" />
                     <button class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-accent" @click="menuDelete">
@@ -721,6 +1092,32 @@ return;
                                 ? `Zmazať vybrané (${selectedIds.size})`
                                 : 'Zmazať'
                         }}
+                    </button>
+                </template>
+                <template v-else-if="contextMenu.slot">
+                    <p class="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                        {{ contextMenu.slot.name }} · {{ contextMenu.slot.start_time }}–{{ contextMenu.slot.end_time }}
+                    </p>
+                    <button
+                        v-if="contextMenu.slot.hidden"
+                        class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                        @click="menuSlotHidden(false)"
+                    >
+                        <Eye class="size-4" /> Zobraziť v tomto dni
+                    </button>
+                    <button
+                        v-else
+                        class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                        @click="menuSlotHidden(true)"
+                    >
+                        <EyeOff class="size-4" /> Skryť v tomto dni
+                    </button>
+                    <button
+                        v-if="contextMenu.slot.overridden"
+                        class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                        @click="menuSlotReset"
+                    >
+                        <RotateCcw class="size-4" /> Obnoviť podľa šablóny
                     </button>
                 </template>
                 <template v-else>

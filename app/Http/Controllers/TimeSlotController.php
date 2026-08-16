@@ -11,7 +11,7 @@ class TimeSlotController extends Controller
 {
     public function store(Request $request, Camp $camp): RedirectResponse
     {
-        $this->authorize('update', $camp);
+        $this->authorize('editSchedule', $camp);
 
         $data = $this->validateData($request);
 
@@ -25,7 +25,7 @@ class TimeSlotController extends Controller
 
     public function update(Request $request, TimeSlot $slot): RedirectResponse
     {
-        $this->authorize('update', $slot->camp);
+        $this->authorize('editSchedule', $slot->camp);
 
         $slot->update($this->validateData($request));
 
@@ -34,7 +34,7 @@ class TimeSlotController extends Controller
 
     public function destroy(TimeSlot $slot): RedirectResponse
     {
-        $this->authorize('update', $slot->camp);
+        $this->authorize('editSchedule', $slot->camp);
 
         $slot->delete();
 

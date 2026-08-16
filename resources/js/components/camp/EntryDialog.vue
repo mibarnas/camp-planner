@@ -20,17 +20,34 @@ import { categoryById, colorStyle } from '@/lib/campColors';
 import { durationLabel, minToTime, timeToMin } from '@/lib/timeline';
 import { store as storeActivity } from '@/routes/activities';
 import { destroy as destroyEntry, store as storeEntry, update as updateEntry } from '@/routes/entries';
-import type { Activity, ActivityCategory, ActivityLibraryRef, CampDay, ProgramEntry } from '@/types/camp';
+import type {
+    Activity,
+    ActivityCategory,
+    ActivityLibraryRef,
+    CampDay,
+    EntryStatus,
+    ProgramEntry,
+} from '@/types/camp';
 
-const props = defineProps<{
-    open: boolean;
-    day: CampDay | null;
-    entry: ProgramEntry | null;
-    activities: Activity[];
-    categories: ActivityCategory[];
-    library: ActivityLibraryRef | null;
-    startMin?: number;
-}>();
+const props = withDefaults(
+    defineProps<{
+        open: boolean;
+        day: CampDay | null;
+        entry: ProgramEntry | null;
+        activities: Activity[];
+        categories: ActivityCategory[];
+        library: ActivityLibraryRef | null;
+        startMin?: number;
+        editable?: boolean;
+    }>(),
+    { editable: true },
+);
+
+const STATUS_OPTIONS: { value: EntryStatus; label: string }[] = [
+    { value: 'todo', label: 'Treba doriešiť' },
+    { value: 'none', label: 'Rozpracované' },
+    { value: 'done', label: 'Hotové' },
+];
 
 const emit = defineEmits<{ 'update:open': [value: boolean] }>();
 
@@ -44,6 +61,7 @@ const form = useForm({
     responsible: '',
     materials: '',
     notes: '',
+    status: 'none' as EntryStatus,
 });
 
 // --- Picker state ---
@@ -88,6 +106,7 @@ return;
             responsible: e?.responsible ?? '',
             materials: e?.materials ?? '',
             notes: e?.notes ?? '',
+            status: e?.status ?? 'none',
         });
         form.reset();
         mode.value = e && e.activity_id === null && (e.title || e.description) ? 'custom' : 'library';
@@ -333,6 +352,23 @@ savedToLibrary.value = false;
                         </div>
                     </div>
 
+                    <div v-if="entry" class="grid gap-2">
+                        <Label>Stav</Label>
+                        <div class="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
+                            <button
+                                v-for="option in STATUS_OPTIONS"
+                                :key="option.value"
+                                type="button"
+                                class="rounded-md px-2 py-1.5 text-sm font-medium transition-colors"
+                                :class="form.status === option.value ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                                @click="form.status = option.value"
+                            >
+                                {{ option.label }}
+                            </button>
+                        </div>
+                        <InputError :message="form.errors.status" />
+                    </div>
+
                     <div class="grid gap-2">
                         <Label for="entry-notes">Poznámky</Label>
                         <Textarea id="entry-notes" v-model="form.notes" class="min-h-16" placeholder="Interné poznámky k tejto aktivite v programe…" />
@@ -354,14 +390,18 @@ savedToLibrary.value = false;
                 </form>
             </div>
 
+            <p v-if="!editable" class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-200">
+                Program je uzamknutý — zmeny sa nedajú uložiť, kým ho vlastník neodomkne.
+            </p>
+
             <DialogFooter class="sm:justify-between">
-                <Button v-if="entry" type="button" variant="ghost" class="text-destructive" @click="remove">
+                <Button v-if="entry && editable" type="button" variant="ghost" class="text-destructive" @click="remove">
                     <Trash2 /> Odstrániť
                 </Button>
                 <span v-else />
                 <div class="flex gap-2">
-                    <Button type="button" variant="outline" @click="emit('update:open', false)">Zrušiť</Button>
-                    <Button type="button" :disabled="form.processing" @click="submit">Uložiť</Button>
+                    <Button type="button" variant="outline" @click="emit('update:open', false)">Zavrieť</Button>
+                    <Button v-if="editable" type="button" :disabled="form.processing" @click="submit">Uložiť</Button>
                 </div>
             </DialogFooter>
         </DialogContent>

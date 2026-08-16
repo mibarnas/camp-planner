@@ -29,6 +29,7 @@ export type Camp = {
     end_date: string;
     owner_id: number;
     is_owner: boolean;
+    schedule_locked: boolean;
 };
 
 export type TimeSlot = {
@@ -41,12 +42,42 @@ export type TimeSlot = {
     position: number;
 };
 
+/** One day's deviation from a camp-wide block; null times keep the template's. */
+export type SlotOverride = {
+    time_slot_id: number;
+    start_time: string | null;
+    end_time: string | null;
+    is_hidden: boolean;
+};
+
+/**
+ * A block as it actually applies to one day, template merged with its override.
+ * Derived on the client — `effectiveSlots()` is the only place that builds it.
+ */
+export type EffectiveSlot = TimeSlot & { overridden: boolean; hidden: boolean };
+
+export type SlotOverridePatch = {
+    start_time?: string | null;
+    end_time?: string | null;
+    is_hidden?: boolean;
+};
+
+export type PlanVersion = {
+    id: number;
+    name: string;
+    author: string | null;
+    created_at: string | null;
+};
+
 export type ActivityRef = {
     id: number;
     name: string;
     category: string;
     color: string | null;
 };
+
+/** 'todo' = treba doriešiť, 'none' = rozpracované (default), 'done' = hotové. */
+export type EntryStatus = 'todo' | 'none' | 'done';
 
 export type ProgramEntry = {
     id: number;
@@ -59,7 +90,7 @@ export type ProgramEntry = {
     responsible: string | null;
     materials: string | null;
     notes: string | null;
-    is_done: boolean;
+    status: EntryStatus;
     avg_rating: number | null;
     rating_count: number;
 };
@@ -91,6 +122,7 @@ export type CampDay = {
     materials: string | null;
     notes: string | null;
     entries: ProgramEntry[];
+    slot_overrides: SlotOverride[];
     is_last: boolean;
     my_review: DayReviewData | null;
     review_summary: ReviewSummary;

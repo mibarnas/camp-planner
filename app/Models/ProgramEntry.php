@@ -18,7 +18,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $responsible
  * @property string|null $materials
  * @property string|null $notes
- * @property bool $is_done
+ * @property string $status one of todo|none|done
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Activity|null $activity
@@ -36,7 +36,15 @@ class ProgramEntry extends Model
         'responsible',
         'materials',
         'notes',
-        'is_done',
+        'status',
+    ];
+
+    /** Progress states an entry can be in. */
+    public const STATUSES = ['todo', 'none', 'done'];
+
+    /** Matches the column default so a just-created entry isn't serialized as null. */
+    protected $attributes = [
+        'status' => 'none',
     ];
 
     /**
@@ -45,7 +53,6 @@ class ProgramEntry extends Model
     protected function casts(): array
     {
         return [
-            'is_done' => 'boolean',
             'duration' => 'integer',
         ];
     }

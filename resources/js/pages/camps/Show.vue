@@ -1,12 +1,27 @@
 <script setup lang="ts">
 import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
-import { CalendarHeart, Columns3, Copy, MapPin, Settings, Sparkles, Star, Trash2, Users } from '@lucide/vue';
+import {
+    CalendarHeart,
+    Columns3,
+    Copy,
+    History,
+    Lock,
+    LockOpen,
+    MapPin,
+    Pencil,
+    Settings,
+    Sparkles,
+    Star,
+    Trash2,
+    Users,
+} from '@lucide/vue';
 import { computed, ref, watch, watchEffect } from 'vue';
 import CampAppearanceFields from '@/components/camp/CampAppearanceFields.vue';
 import DayDialog from '@/components/camp/DayDialog.vue';
 import DayReviewDialog from '@/components/camp/DayReviewDialog.vue';
 import EntryDialog from '@/components/camp/EntryDialog.vue';
 import MembersDialog from '@/components/camp/MembersDialog.vue';
+import PlanVersionsDialog from '@/components/camp/PlanVersionsDialog.vue';
 import SlotsDialog from '@/components/camp/SlotsDialog.vue';
 import SummaryDialog from '@/components/camp/SummaryDialog.vue';
 import TimetableTimeline from '@/components/camp/TimetableTimeline.vue';
@@ -27,8 +42,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { colorStyle } from '@/lib/campColors';
 import { campIcon } from '@/lib/campIcons';
 import { index as campsIndex } from '@/routes/camps';
-import { destroy as destroyCamp, duplicate as duplicateCamp, fillNameDays, update as updateCamp } from '@/routes/camps';
-import { bulkDestroy, bulkUpdate, toggle as toggleEntry } from '@/routes/entries';
+import { destroy as destroyCamp, duplicate as duplicateCamp, fillNameDays, lock as lockCamp, unlock as unlockCamp, update as updateCamp } from '@/routes/camps';
+import { bulkDestroy, bulkUpdate, setStatus as setEntryStatus } from '@/routes/entries';
+import { destroy as destroyOverride, upsert as upsertOverride } from '@/routes/slotOverrides';
 import type {
     Activity,
     ActivityCategory,
@@ -37,8 +53,12 @@ import type {
     CampDay,
     CampInvitation,
     CampMember,
+    EffectiveSlot,
+    EntryStatus,
+    PlanVersion,
     ProgramEntry,
     ShareLink,
+    SlotOverridePatch,
     TimeSlot,
 } from '@/types/camp';
 
@@ -52,6 +72,7 @@ const props = defineProps<{
     activities: Activity[];
     categories: ActivityCategory[];
     library: ActivityLibraryRef | null;
+    planVersions: PlanVersion[];
 }>();
 
 watchEffect(() => {
@@ -92,9 +113,13 @@ function onAdd(day: CampDay, startMin: number) {
     addStartMin.value = startMin;
     entryOpen.value = true;
 }
-function onToggleDone(entry: ProgramEntry) {
-    entry.is_done = !entry.is_done; // optimistic
-    router.put(toggleEntry(entry.id).url, {}, { preserveScroll: true });
+// Someone else may have locked the schedule since this page loaded — reload so
+// the banner shows up instead of leaving a silent failure on screen.
+const scheduleWrite = { preserveScroll: true, onError: () => router.reload() };
+
+function onSetStatus(entry: ProgramEntry, status: EntryStatus) {
+    entry.status = status; // optimistic
+    router.put(setEntryStatus(entry.id).url, { status }, scheduleWrite);
 }
 function onCommit(entries: ProgramEntry[]) {
     router.put(
@@ -106,18 +131,48 @@ function onCommit(entries: ProgramEntry[]) {
                 duration: e.duration,
             })),
         },
-        { preserveScroll: true },
+        scheduleWrite,
     );
 }
 function onBulkDelete(ids: number[]) {
-    router.post(bulkDestroy().url, { ids }, { preserveScroll: true });
+    router.post(bulkDestroy().url, { ids }, scheduleWrite);
 }
 function onBulkResponsible(ids: number[], responsible: string) {
     router.put(
         bulkUpdate().url,
         { entries: ids.map((id) => ({ id, responsible })) },
-        { preserveScroll: true },
+        scheduleWrite,
     );
+}
+
+// --- Per-day block overrides (the timeline already updated localDays) ---
+function onSlotOverride(day: CampDay, slot: EffectiveSlot, patch: SlotOverridePatch) {
+    router.put(upsertOverride({ day: day.id, slot: slot.id }).url, patch, scheduleWrite);
+}
+function onSlotOverrideReset(day: CampDay, slot: EffectiveSlot) {
+    router.delete(destroyOverride({ day: day.id, slot: slot.id }).url, scheduleWrite);
+}
+
+// --- Editing on touch devices is opt-in, and the owner can freeze it for all ---
+const isCoarsePointer =
+    typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+const mobileEdit = ref(false);
+const canEditSchedule = computed(
+    () => !props.camp.schedule_locked && (!isCoarsePointer || mobileEdit.value),
+);
+
+function toggleLock() {
+    if (props.camp.schedule_locked) {
+        router.delete(unlockCamp(props.camp.id).url, { preserveScroll: true });
+
+        return;
+    }
+
+    if (!confirm('Zamknúť program? Nikto (ani ty) ho nebude môcť presúvať, kým ho neodomkneš.')) {
+        return;
+    }
+
+    router.post(lockCamp(props.camp.id).url, {}, { preserveScroll: true });
 }
 
 // --- Day dialog ---
@@ -148,6 +203,7 @@ function capitalize(v: string): string {
 const slotsOpen = ref(false);
 const membersOpen = ref(false);
 const summaryOpen = ref(false);
+const versionsOpen = ref(false);
 
 // --- Fill name days from the Slovak calendar ---
 function fillNames() {
@@ -257,6 +313,19 @@ function submitDuplicate() {
                 <Button variant="outline" size="sm" @click="openDuplicate">
                     <Copy /> Duplikovať
                 </Button>
+                <Button v-if="camp.is_owner" variant="outline" size="sm" @click="versionsOpen = true">
+                    <History /> Verzie plánu
+                </Button>
+                <Button
+                    v-if="camp.is_owner"
+                    variant="outline"
+                    size="sm"
+                    :class="camp.schedule_locked ? 'border-amber-400 text-amber-700 dark:text-amber-300' : ''"
+                    @click="toggleLock"
+                >
+                    <component :is="camp.schedule_locked ? LockOpen : Lock" />
+                    {{ camp.schedule_locked ? 'Odomknúť program' : 'Zamknúť program' }}
+                </Button>
                 <Button v-if="camp.is_owner" variant="outline" size="sm" @click="openSettings">
                     <Settings /> Nastavenia
                 </Button>
@@ -275,26 +344,61 @@ function submitDuplicate() {
             <Button size="sm" class="ml-auto" @click="onReview(dayToReview)">Zhodnotiť deň</Button>
         </div>
 
-        <!-- Legend -->
-        <p class="text-xs text-muted-foreground">
-            Klikni do voľného miesta a pridaj aktivitu. Aktivitu <strong>potiahni</strong> pre presun,
-            za pravý okraj pre zmenu dĺžky. <strong>Ctrl+klik</strong> označí viac aktivít (presúvajú sa
-            spolu), <strong>pravý klik</strong> otvorí menu. <strong>⭐</strong> pri dni = zhodnoť ho.
-        </p>
+        <!-- Frozen schedule -->
+        <div
+            v-if="camp.schedule_locked"
+            class="flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-950/30"
+        >
+            <Lock class="size-5 text-amber-600 dark:text-amber-400" />
+            <p class="text-sm">
+                <strong>Program je uzamknutý</strong> — úpravy rozvrhu sú vypnuté pre všetkých.
+                <span v-if="camp.is_owner">Odomkneš ho tlačidlom hore.</span>
+                <span v-else>Odomknúť ho môže vlastník tábora.</span>
+                Poznámky k dňom a hodnotenia fungujú ďalej.
+            </p>
+        </div>
+
+        <!-- Legend + touch edit toggle -->
+        <div class="flex flex-wrap items-center gap-3">
+            <p v-if="isCoarsePointer" class="text-xs text-muted-foreground">
+                Ťukni na aktivitu pre detail.
+                <template v-if="!camp.schedule_locked">
+                    Presúvanie zapneš tlačidlom <strong>Upravovať</strong>.
+                </template>
+            </p>
+            <p v-else class="text-xs text-muted-foreground">
+                Klikni do voľného miesta a pridaj aktivitu. Aktivitu <strong>potiahni</strong> pre presun,
+                za pravý okraj pre zmenu dĺžky. <strong>Ctrl+klik</strong> označí viac aktivít (presúvajú sa
+                spolu), <strong>pravý klik</strong> otvorí menu — aj na časovom bloku, ktorý sa dá presunúť
+                alebo skryť len pre jeden deň. <strong>⭐</strong> pri dni = zhodnoť ho.
+            </p>
+            <Button
+                v-if="isCoarsePointer && !camp.schedule_locked"
+                :variant="mobileEdit ? 'default' : 'outline'"
+                size="sm"
+                class="ml-auto"
+                @click="mobileEdit = !mobileEdit"
+            >
+                <Pencil /> {{ mobileEdit ? 'Upravovanie zapnuté' : 'Upravovať' }}
+            </Button>
+        </div>
 
         <!-- Timetable -->
         <TimetableTimeline
             v-if="slots.length && localDays.length"
             :days="localDays"
             :slots="slots"
+            :editable="canEditSchedule"
             @edit="onEdit"
             @add="onAdd"
             @edit-day="onEditDay"
             @review="onReview"
-            @toggle-done="onToggleDone"
+            @set-status="onSetStatus"
             @commit="onCommit"
             @bulk-delete="onBulkDelete"
             @bulk-responsible="onBulkResponsible"
+            @slot-override="onSlotOverride"
+            @slot-override-reset="onSlotOverrideReset"
         />
         <div v-else class="rounded-xl border border-dashed p-12 text-center text-muted-foreground">
             <p v-if="!slots.length">Najprv pridaj časové bloky.</p>
@@ -311,6 +415,7 @@ function submitDuplicate() {
         :categories="categories"
         :library="library"
         :start-min="addStartMin"
+        :editable="!camp.schedule_locked"
     />
     <DayDialog v-model:open="dayOpen" :day="dayForDialog" />
     <DayReviewDialog v-model:open="reviewOpen" :day="reviewDay" />
@@ -323,6 +428,13 @@ function submitDuplicate() {
         :invitations="invitations"
         :share-link="shareLink"
         :is-owner="camp.is_owner"
+    />
+    <PlanVersionsDialog
+        v-model:open="versionsOpen"
+        :camp-id="camp.id"
+        :versions="planVersions"
+        :is-owner="camp.is_owner"
+        :schedule-locked="camp.schedule_locked"
     />
 
     <!-- Settings -->

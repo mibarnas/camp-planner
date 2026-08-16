@@ -89,8 +89,9 @@ function remove(slot: TimeSlot) {
             <DialogHeader>
                 <DialogTitle>Časové bloky (stĺpce)</DialogTitle>
                 <DialogDescription>
-                    Denná časová kostra. „Pevné" bloky (obed, oddych) sú každý deň rovnaké; do „programových"
-                    blokov dopĺňaš obsah po dňoch.
+                    Denná časová kostra — šablóna pre všetky dni. „Pevné" bloky (obed, oddych) sú kostrou dňa;
+                    do „programových" blokov dopĺňaš obsah po dňoch. Blok sa dá v rozvrhu presunúť alebo skryť
+                    aj len pre jeden deň (napr. výlet) — také dni si svoju úpravu ponechajú aj po zmene šablóny.
                 </DialogDescription>
             </DialogHeader>
 

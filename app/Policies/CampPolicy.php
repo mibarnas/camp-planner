@@ -24,6 +24,15 @@ class CampPolicy
     }
 
     /**
+     * Members may move the program around — unless the owner froze the schedule.
+     * Day notes and reviews go through `update` and stay editable while frozen.
+     */
+    public function editSchedule(User $user, Camp $camp): bool
+    {
+        return $camp->hasMember($user) && ! $camp->isScheduleLocked();
+    }
+
+    /**
      * Only the owner may delete the camp.
      */
     public function delete(User $user, Camp $camp): bool

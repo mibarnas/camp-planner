@@ -70,4 +70,14 @@ class CampDay extends Model
     {
         return $this->hasMany(DayReview::class);
     }
+
+    /**
+     * This day's deviations from the camp-wide daily skeleton.
+     *
+     * @return HasMany<TimeSlotOverride, $this>
+     */
+    public function slotOverrides(): HasMany
+    {
+        return $this->hasMany(TimeSlotOverride::class);
+    }
 }

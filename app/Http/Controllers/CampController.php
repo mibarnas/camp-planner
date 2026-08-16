@@ -6,8 +6,10 @@ use App\Models\Activity;
 use App\Models\ActivityLibrary;
 use App\Models\Camp;
 use App\Models\CampDay;
+use App\Models\PlanVersion;
 use App\Models\ProgramEntry;
 use App\Models\TimeSlot;
+use App\Models\TimeSlotOverride;
 use App\Models\User;
 use App\Support\NameDays;
 use Illuminate\Http\RedirectResponse;
@@ -186,6 +188,7 @@ class CampController extends Controller
             'timeSlots',
             'days.entries' => fn ($q) => $q->orderBy('start_time'),
             'days.entries.activity:id,name,color',
+            'days.slotOverrides',
             'days.reviews.ratings',
             'days.reviews.user:id,name',
             'members:id,name,email',
@@ -223,7 +226,7 @@ class CampController extends Controller
                     'responsible' => $entry->responsible,
                     'materials' => $entry->materials,
                     'notes' => $entry->notes,
-                    'is_done' => $entry->is_done,
+                    'status' => $entry->status,
                     'avg_rating' => $rs && $rs->count() ? round($rs->avg('rating'), 1) : null,
                     'rating_count' => $rs?->count() ?? 0,
                 ];
@@ -262,6 +265,12 @@ class CampController extends Controller
                 'materials' => $day->materials,
                 'notes' => $day->notes,
                 'entries' => $entries,
+                'slot_overrides' => $day->slotOverrides->map(fn (TimeSlotOverride $o) => [
+                    'time_slot_id' => $o->time_slot_id,
+                    'start_time' => $o->start_time === null ? null : substr((string) $o->start_time, 0, 5),
+                    'end_time' => $o->end_time === null ? null : substr((string) $o->end_time, 0, 5),
+                    'is_hidden' => $o->is_hidden,
+                ])->values()->all(),
                 'is_last' => $day->id === $lastDayId,
                 'my_review' => $myReview,
                 'review_summary' => [
@@ -285,9 +294,17 @@ class CampController extends Controller
                 'end_date' => $camp->end_date->toDateString(),
                 'owner_id' => $camp->owner_id,
                 'is_owner' => $camp->owner_id === Auth::id(),
+                'schedule_locked' => $camp->isScheduleLocked(),
             ],
             'slots' => $slots,
             'days' => $days,
+            'planVersions' => $camp->planVersions()->with('user:id,name')->latest()->get()
+                ->map(fn (PlanVersion $v) => [
+                    'id' => $v->id,
+                    'name' => $v->name,
+                    'author' => $v->user?->name,
+                    'created_at' => $v->created_at?->toIso8601String(),
+                ])->values(),
             'members' => $camp->members->map(fn (User $m) => [
                 'id' => $m->id,
                 'name' => $m->name,
@@ -393,18 +410,20 @@ class CampController extends Controller
             ]);
             $new->addMember($request->user(), 'owner');
 
-            // Copy the time-block guides.
+            // Copy the time-block guides, remembering which new slot each old
+            // one became so per-day overrides can point at the right block.
+            $newSlotIdByOld = [];
             foreach ($camp->timeSlots()->get() as $slot) {
-                $new->timeSlots()->create($slot->only([
+                $newSlotIdByOld[$slot->id] = $new->timeSlots()->create($slot->only([
                     'name', 'start_time', 'end_time', 'kind', 'color', 'position',
-                ]));
+                ]))->id;
             }
 
             $this->generateDays($new);
 
             // Optionally copy the program content onto matching days by position.
             if ($copyProgram) {
-                $oldDays = $camp->days()->with('entries')->get()->values();
+                $oldDays = $camp->days()->with(['entries', 'slotOverrides'])->get()->values();
                 $newDays = $new->days()->get()->values();
 
                 foreach ($oldDays as $i => $oldDay) {
@@ -428,6 +447,21 @@ class CampController extends Controller
                             'notes' => $entry->notes,
                         ]);
                     }
+
+                    foreach ($oldDay->slotOverrides as $override) {
+                        $slotId = $newSlotIdByOld[$override->time_slot_id] ?? null;
+
+                        if (! $slotId) {
+                            continue;
+                        }
+
+                        $target->slotOverrides()->create([
+                            'time_slot_id' => $slotId,
+                            'start_time' => $override->start_time,
+                            'end_time' => $override->end_time,
+                            'is_hidden' => $override->is_hidden,
+                        ]);
+                    }
                 }
             }
 
@@ -438,6 +472,28 @@ class CampController extends Controller
             'type' => 'success',
             'message' => __('Camp duplicated.'),
         ]);
+    }
+
+    /**
+     * Freeze the program for everyone — the owner included — so an accidental
+     * drag can't move anything until it is unlocked again.
+     */
+    public function lock(Camp $camp): RedirectResponse
+    {
+        $this->authorize('manageMembers', $camp);
+
+        $camp->update(['schedule_locked_at' => now()]);
+
+        return back()->with('toast', ['type' => 'success', 'message' => __('Schedule locked.')]);
+    }
+
+    public function unlock(Camp $camp): RedirectResponse
+    {
+        $this->authorize('manageMembers', $camp);
+
+        $camp->update(['schedule_locked_at' => null]);
+
+        return back()->with('toast', ['type' => 'success', 'message' => __('Schedule unlocked.')]);
     }
 
     /**
