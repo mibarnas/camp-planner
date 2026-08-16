@@ -61,6 +61,10 @@ const emit = defineEmits<{
 
 // --- Layout: px-per-minute stretches to fill the available width -------------
 const LANE_H = 74;
+// Height of the per-day strip of block handles above the activity cards. The
+// blocks used to be draggable via their full-height background tint, which sat
+// underneath the cards — in a full day there was barely any of it left to grab.
+const BAR_H = 18;
 const LABEL_W = 156;
 const PAD = 6;
 const CARD_GAP = 4;
@@ -170,7 +174,7 @@ const layout = computed(() =>
             items,
             slots: slots.filter((s) => !s.hidden),
             hiddenSlots: slots.filter((s) => s.hidden),
-            height: lanes * LANE_H + PAD * 2,
+            height: BAR_H + lanes * LANE_H + PAD * 2,
         };
     }),
 );
@@ -436,6 +440,12 @@ function restoreLocalOverride(day: CampDay, slotId: number, original: SlotOverri
 function slotTooltip(slot: EffectiveSlot): string {
     const lines = [slot.name, `${slot.start_time}–${slot.end_time}`];
 
+    if (slot.hidden) {
+        lines.push('V tomto dni skrytý — klikni pre zobrazenie');
+    } else if (props.editable) {
+        lines.push('Potiahni pre presun len v tomto dni, klikni pre menu');
+    }
+
     if (slot.overridden) {
         const template = props.slots.find((s) => s.id === slot.id);
         lines.push(
@@ -474,10 +484,6 @@ type SlotDragState = {
     moved: boolean;
 };
 const slotDrag = ref<SlotDragState | null>(null);
-
-// A finished drag must not also count as a click on the track (which would add
-// an activity where the block was just dropped).
-let justDragged = false;
 
 function snap(min: number): number {
     return Math.round(min / SNAP) * SNAP;
@@ -619,13 +625,23 @@ function onSlotPointerMove(e: PointerEvent) {
 return;
 }
 
-    const deltaMin = snap((e.clientX - d.startX) / pxPerMin.value);
-
-    if (Math.abs(deltaMin) < SNAP) {
+    // A hidden block has nowhere to move to — its handle is click-only.
+    if (d.slot.hidden) {
 return;
 }
 
-    d.moved = true;
+    const deltaMin = snap((e.clientX - d.startX) / pxPerMin.value);
+
+    // The threshold only decides when a drag has begun. Once it has, every
+    // delta is applied — including back to zero, so a drag can be taken back
+    // without letting go.
+    if (!d.moved) {
+        if (Math.abs(deltaMin) < SNAP) {
+return;
+}
+
+        d.moved = true;
+    }
 
     if (d.mode === 'move') {
         const span = d.origEnd - d.origStart;
@@ -679,17 +695,29 @@ return;
         window.removeEventListener('pointercancel', onCancel);
     };
 
-    const onUp = () => {
+    const onUp = (ev: PointerEvent) => {
         const d = slotDrag.value;
         detach();
         slotDrag.value = null;
 
-        if (!d?.moved) {
+        if (!d) {
 return;
 }
 
-        justDragged = true;
-        setTimeout(() => (justDragged = false), 0);
+        // A handle that wasn't dragged opens its menu — the only way to hide,
+        // restore or reset a block with a touch screen and no right mouse button.
+        if (!d.moved) {
+            contextMenu.value = {
+                x: ev.clientX,
+                y: ev.clientY,
+                day: d.day,
+                entry: null,
+                slot: d.slot,
+                startMin: 0,
+            };
+
+            return;
+        }
 
         emit('slotOverride', d.day, d.slot, {
             start_time: minToTime(d.curStart),
@@ -725,12 +753,6 @@ function onTrackClick(e: MouseEvent, day: CampDay) {
     if (drag.value || slotDrag.value || !props.editable) {
 return;
 }
-
-    if (justDragged) {
-        justDragged = false;
-
-        return;
-    }
 
     if ((e.target as HTMLElement).closest('[data-card]')) {
 return;
@@ -916,56 +938,70 @@ return;
                         @click="onTrackClick($event, row.day)"
                         @contextmenu="openTrackMenu($event, row.day)"
                     >
-                        <!-- Daily blocks as they apply to this day -->
+                        <!-- Block tint: background only, so it never competes with
+                             the cards or with click-to-add. -->
                         <div
                             v-for="slot in row.slots"
                             :key="'bg' + slot.id"
-                            data-slotband
-                            class="absolute top-0 bottom-0 border-l"
+                            class="pointer-events-none absolute bottom-0 border-l"
                             :class="[
                                 colorStyle(slot.color).cell,
                                 slot.kind === 'fixed' ? 'opacity-90' : 'opacity-40',
-                                slot.overridden ? 'border-solid ring-1 ring-inset ring-foreground/25' : 'border-dashed',
-                                editable ? 'cursor-grab active:cursor-grabbing' : '',
+                                slot.overridden ? 'border-solid' : 'border-dashed',
                             ]"
                             :style="{
+                                top: BAR_H + 'px',
                                 left: xFor(timeToMin(slot.start_time)) + 'px',
                                 width: wFor(timeToMin(slot.end_time) - timeToMin(slot.start_time)) + 'px',
-                                touchAction: editable ? 'none' : 'auto',
                             }"
-                            :title="slotTooltip(slot)"
-                            @pointerdown="beginSlotDrag($event, slot, row.day)"
-                            @contextmenu="openSlotMenu($event, row.day, slot)"
                         >
                             <span
                                 v-if="slot.kind === 'fixed'"
-                                class="pointer-events-none absolute inset-0 flex items-center justify-center text-[11px] font-medium text-muted-foreground"
+                                class="absolute inset-0 flex items-center justify-center text-[11px] font-medium text-muted-foreground"
                             >
                                 {{ slot.name }}
                             </span>
-                            <div
-                                v-if="editable"
-                                data-slotresize
-                                class="absolute top-0 right-0 bottom-0 w-2 cursor-ew-resize hover:bg-foreground/10"
-                                title="Potiahni pre zmenu dĺžky bloku (len tento deň)"
-                            />
                         </div>
 
-                        <!-- Blocks hidden on this day, kept as a thin strip so they can come back -->
+                        <!-- Handles for this day's blocks: always on top, never covered
+                             by an activity. Hidden blocks stay here as a dashed ghost so
+                             they can be brought back. -->
                         <div
-                            v-for="slot in row.hiddenSlots"
-                            :key="'hid' + slot.id"
-                            data-slotband
-                            class="absolute top-0 h-1 rounded-b border-x border-b border-dashed opacity-70"
-                            :class="colorStyle(slot.color).cell"
-                            :style="{
-                                left: xFor(timeToMin(slot.start_time)) + 'px',
-                                width: wFor(timeToMin(slot.end_time) - timeToMin(slot.start_time)) + 'px',
-                            }"
-                            :title="`${slot.name} — v tomto dni skrytý (pravý klik pre zobrazenie)`"
+                            data-slotbar
+                            class="absolute top-0 right-0 left-0 z-20"
+                            :style="{ height: BAR_H + 'px' }"
                             @click.stop
-                            @contextmenu="openSlotMenu($event, row.day, slot)"
-                        />
+                        >
+                            <div
+                                v-for="slot in [...row.slots, ...row.hiddenSlots]"
+                                :key="'chip' + slot.id"
+                                class="absolute top-0.5 flex items-center overflow-hidden rounded-sm border px-1"
+                                :class="[
+                                    colorStyle(slot.color).cell,
+                                    slot.hidden ? 'border-dashed opacity-50' : '',
+                                    slot.overridden ? 'ring-1 ring-foreground/30' : '',
+                                    editable ? (slot.hidden ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing') : 'cursor-default',
+                                ]"
+                                :style="{
+                                    left: xFor(timeToMin(slot.start_time)) + 'px',
+                                    width: Math.max(10, wFor(timeToMin(slot.end_time) - timeToMin(slot.start_time)) - 2) + 'px',
+                                    height: BAR_H - 4 + 'px',
+                                    touchAction: editable ? 'none' : 'auto',
+                                }"
+                                :title="slotTooltip(slot)"
+                                @pointerdown="beginSlotDrag($event, slot, row.day)"
+                                @contextmenu="openSlotMenu($event, row.day, slot)"
+                            >
+                                <EyeOff v-if="slot.hidden" class="mr-0.5 size-2.5 shrink-0" />
+                                <span class="truncate text-[10px] leading-none font-medium">{{ slot.name }}</span>
+                                <div
+                                    v-if="editable && !slot.hidden"
+                                    data-slotresize
+                                    class="absolute top-0 right-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-foreground/20"
+                                    title="Potiahni pre zmenu dĺžky bloku (len tento deň)"
+                                />
+                            </div>
+                        </div>
 
                         <div
                             v-for="t in hourTicks"
@@ -992,7 +1028,7 @@ return;
                             :style="{
                                 left: xFor(timeToMin(item.entry.start_time)) + 'px',
                                 width: Math.max(24, wFor(item.entry.duration) - 2) + 'px',
-                                top: PAD + item.lane * LANE_H + 'px',
+                                top: BAR_H + PAD + item.lane * LANE_H + 'px',
                                 height: LANE_H - CARD_GAP + 'px',
                                 touchAction: editable ? 'none' : 'auto',
                             }"

@@ -369,8 +369,9 @@ function submitDuplicate() {
             <p v-else class="text-xs text-muted-foreground">
                 Klikni do voľného miesta a pridaj aktivitu. Aktivitu <strong>potiahni</strong> pre presun,
                 za pravý okraj pre zmenu dĺžky. <strong>Ctrl+klik</strong> označí viac aktivít (presúvajú sa
-                spolu), <strong>pravý klik</strong> otvorí menu — aj na časovom bloku, ktorý sa dá presunúť
-                alebo skryť len pre jeden deň. <strong>⭐</strong> pri dni = zhodnoť ho.
+                spolu), <strong>pravý klik</strong> otvorí menu. Farebné <strong>štítky blokov</strong> nad
+                aktivitami sa dajú potiahnuť (presun len v tomto dni) alebo kliknúť pre skrytie a obnovenie.
+                <strong>⭐</strong> pri dni = zhodnoť ho.
             </p>
             <Button
                 v-if="isCoarsePointer && !camp.schedule_locked"
