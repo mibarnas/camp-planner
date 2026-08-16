@@ -79,9 +79,18 @@ export type ActivityRef = {
 /** 'todo' = treba doriešiť, 'none' = rozpracované (default), 'done' = hotové. */
 export type EntryStatus = 'todo' | 'none' | 'done';
 
+/**
+ * 'detailed' = a programme activity: can come from the activity library or be
+ * saved back to it, carries a scenario, materials and a responsible leader,
+ * and gets rated in the day review.
+ * 'simple' = a plain block on the timeline (Raňajky, Presun do Tatier).
+ */
+export type EntryKind = 'detailed' | 'simple';
+
 export type ProgramEntry = {
     id: number;
     activity_id: number | null;
+    kind: EntryKind;
     activity: ActivityRef | null;
     start_time: string; // 'HH:MM'
     duration: number; // minutes

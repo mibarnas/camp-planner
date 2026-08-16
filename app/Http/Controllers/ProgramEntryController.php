@@ -19,6 +19,7 @@ class ProgramEntryController extends Controller
         $data = $request->validate([
             'camp_day_id' => ['required', 'exists:camp_days,id'],
             'activity_id' => ['nullable', 'exists:activities,id'],
+            'kind' => ['sometimes', 'in:detailed,simple'],
             'start_time' => ['required', 'date_format:H:i'],
             'duration' => ['required', 'integer', 'min:5', 'max:1440'],
             'title' => ['nullable', 'string', 'max:255'],
@@ -30,6 +31,14 @@ class ProgramEntryController extends Controller
 
         $day = CampDay::findOrFail((int) $data['camp_day_id']);
         $this->authorize('editSchedule', $day->camp);
+
+        $kind = $data['kind'] ?? 'detailed';
+
+        // A simple block is just a label on the timeline — it never links to the
+        // activity library, whatever the client sent.
+        if ($kind === 'simple') {
+            $data['activity_id'] = null;
+        }
 
         // Prefill title/description/materials from the chosen activity if empty.
         if (! empty($data['activity_id'])) {
@@ -43,6 +52,7 @@ class ProgramEntryController extends Controller
 
         $day->entries()->create([
             'activity_id' => $data['activity_id'] ?? null,
+            'kind' => $kind,
             'start_time' => $data['start_time'],
             'duration' => $data['duration'],
             'title' => $data['title'] ?? null,
@@ -64,6 +74,7 @@ class ProgramEntryController extends Controller
 
         $data = $request->validate([
             'activity_id' => ['sometimes', 'nullable', 'exists:activities,id'],
+            'kind' => ['sometimes', 'in:detailed,simple'],
             'start_time' => ['sometimes', 'required', 'date_format:H:i'],
             'duration' => ['sometimes', 'required', 'integer', 'min:5', 'max:1440'],
             'title' => ['sometimes', 'nullable', 'string', 'max:255'],
@@ -73,6 +84,12 @@ class ProgramEntryController extends Controller
             'notes' => ['sometimes', 'nullable', 'string'],
             'status' => ['sometimes', 'in:todo,none,done'],
         ]);
+
+        // Turning an activity into a simple block drops its library link; the
+        // scenario and materials stay on the row so the change is reversible.
+        if (($data['kind'] ?? $entry->kind) === 'simple') {
+            $data['activity_id'] = null;
+        }
 
         $entry->update($data);
 

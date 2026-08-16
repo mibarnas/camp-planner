@@ -2,6 +2,7 @@
 import {
     Check,
     CheckSquare,
+    Coffee,
     Eye,
     EyeOff,
     MapPin,
@@ -182,6 +183,11 @@ const layout = computed(() =>
 const allEntries = computed(() => props.days.flatMap((d) => d.entries));
 
 function cardColor(entry: ProgramEntry, slots: EffectiveSlot[]): string {
+    // Simple blocks stay neutral so the real programme keeps the colour.
+    if (entry.kind === 'simple') {
+        return 'slate';
+    }
+
     return (
         entry.activity?.color ??
         containingSlot(timeToMin(entry.start_time), slots)?.color ??
@@ -1015,9 +1021,10 @@ return;
                             v-for="item in row.items"
                             :key="item.entry.id"
                             data-card
-                            class="absolute flex flex-col overflow-hidden rounded-md border-l-4 border shadow-sm transition-shadow hover:shadow-md"
+                            class="absolute flex flex-col overflow-hidden rounded-md border shadow-sm transition-shadow hover:shadow-md"
                             :class="[
                                 colorStyle(cardColor(item.entry, row.slots)).cell,
+                                item.entry.kind === 'simple' ? 'border-l-2 border-dashed opacity-80' : 'border-l-4',
                                 editable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
                                 isSelected(item.entry)
                                     ? 'ring-2 ring-primary'
@@ -1038,8 +1045,14 @@ return;
                             @click.stop="onCardClick(row.day, item.entry)"
                         >
                             <div class="flex items-start justify-between gap-1 px-1.5 pt-1">
-                                <span class="truncate text-xs font-semibold leading-tight">
-                                    {{ item.entry.title || item.entry.activity?.name || 'Aktivita' }}
+                                <span
+                                    class="flex min-w-0 items-center gap-1 truncate text-xs leading-tight"
+                                    :class="item.entry.kind === 'simple' ? 'font-medium text-muted-foreground' : 'font-semibold'"
+                                >
+                                    <Coffee v-if="item.entry.kind === 'simple'" class="size-3 shrink-0" />
+                                    <span class="truncate">
+                                        {{ item.entry.title || item.entry.activity?.name || 'Aktivita' }}
+                                    </span>
                                 </span>
                                 <span
                                     data-nodrag

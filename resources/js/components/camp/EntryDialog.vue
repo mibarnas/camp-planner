@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, useForm } from '@inertiajs/vue3';
-import { BookmarkPlus, Check, Clock, PenLine, Search, Trash2 } from '@lucide/vue';
+import { BookmarkPlus, Check, Clock, Coffee, PenLine, Search, Trash2 } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ import type {
     ActivityCategory,
     ActivityLibraryRef,
     CampDay,
+    EntryKind,
     EntryStatus,
     ProgramEntry,
 } from '@/types/camp';
@@ -49,6 +50,19 @@ const STATUS_OPTIONS: { value: EntryStatus; label: string }[] = [
     { value: 'done', label: 'Hotové' },
 ];
 
+// One tap fills in the things that recur on almost every camp day.
+const SIMPLE_PRESETS: { label: string; duration: number }[] = [
+    { label: 'Raňajky', duration: 45 },
+    { label: 'Obed', duration: 60 },
+    { label: 'Olovrant', duration: 30 },
+    { label: 'Večera', duration: 60 },
+    { label: 'Odpočinok', duration: 60 },
+    { label: 'Hygiena', duration: 30 },
+    { label: 'Presun', duration: 60 },
+    { label: 'Balenie', duration: 30 },
+    { label: 'Voľno', duration: 60 },
+];
+
 const emit = defineEmits<{ 'update:open': [value: boolean] }>();
 
 const form = useForm({
@@ -62,10 +76,13 @@ const form = useForm({
     materials: '',
     notes: '',
     status: 'none' as EntryStatus,
+    kind: 'detailed' as EntryKind,
 });
 
 // --- Picker state ---
-const mode = ref<'library' | 'custom'>('library');
+type Mode = 'library' | 'custom' | 'simple';
+const mode = ref<Mode>('library');
+const isSimple = computed(() => mode.value === 'simple');
 const search = ref('');
 const categoryFilter = ref<number | 'all'>('all');
 
@@ -107,9 +124,15 @@ return;
             materials: e?.materials ?? '',
             notes: e?.notes ?? '',
             status: e?.status ?? 'none',
+            kind: e?.kind ?? 'detailed',
         });
         form.reset();
-        mode.value = e && e.activity_id === null && (e.title || e.description) ? 'custom' : 'library';
+        mode.value =
+            e?.kind === 'simple'
+                ? 'simple'
+                : e && e.activity_id === null && (e.title || e.description)
+                  ? 'custom'
+                  : 'library';
         search.value = '';
         categoryFilter.value = 'all';
     },
@@ -133,12 +156,23 @@ form.duration = activity.default_duration;
 }
 }
 
-function switchMode(next: 'library' | 'custom') {
+function switchMode(next: Mode) {
     mode.value = next;
 
-    if (next === 'custom') {
+    if (next !== 'library') {
 form.activity_id = null;
 }
+
+    form.kind = next === 'simple' ? 'simple' : 'detailed';
+}
+
+function applyPreset(preset: { label: string; duration: number }) {
+    form.title = preset.label;
+
+    // Only presume the length for a new block; an existing one keeps its slot.
+    if (!props.entry) {
+        form.duration = preset.duration;
+    }
 }
 
 function submit() {
@@ -171,7 +205,7 @@ function remove() {
 const savingToLibrary = ref(false);
 const savedToLibrary = ref(false);
 const canSaveToLibrary = computed(
-    () => !!props.library && !form.activity_id && form.title.trim().length > 0,
+    () => !!props.library && !isSimple.value && !form.activity_id && form.title.trim().length > 0,
 );
 function saveToLibrary() {
     if (!props.library || !canSaveToLibrary.value) {
@@ -223,7 +257,7 @@ savedToLibrary.value = false;
 
             <div class="grid max-h-[65vh] gap-4 overflow-y-auto px-1">
                 <!-- Source tabs -->
-                <div class="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+                <div class="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
                     <button
                         type="button"
                         class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
@@ -240,6 +274,34 @@ savedToLibrary.value = false;
                     >
                         <PenLine class="mr-1 inline size-3.5" /> Vlastná aktivita
                     </button>
+                    <button
+                        type="button"
+                        class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                        :class="mode === 'simple' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                        @click="switchMode('simple')"
+                    >
+                        <Coffee class="mr-1 inline size-3.5" /> Jednoduchý blok
+                    </button>
+                </div>
+
+                <!-- Simple block: a label on the timeline, nothing more -->
+                <div v-if="isSimple" class="grid gap-2">
+                    <p class="text-xs text-muted-foreground">
+                        Pre veci mimo programu — jedlo, presun, odpočinok. Nemá scenár ani materiál
+                        a nezaraďuje sa do hodnotenia dňa.
+                    </p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button
+                            v-for="preset in SIMPLE_PRESETS"
+                            :key="preset.label"
+                            type="button"
+                            class="rounded-full border px-2.5 py-0.5 text-xs transition-colors"
+                            :class="form.title === preset.label ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'"
+                            @click="applyPreset(preset)"
+                        >
+                            {{ preset.label }}
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Library picker -->
@@ -329,17 +391,21 @@ savedToLibrary.value = false;
 
                     <div class="grid gap-2">
                         <Label for="entry-title">Názov</Label>
-                        <Input id="entry-title" v-model="form.title" placeholder="Napr. Zoznamovačky" />
+                        <Input
+                            id="entry-title"
+                            v-model="form.title"
+                            :placeholder="isSimple ? 'Napr. Presun do Tatier' : 'Napr. Zoznamovačky'"
+                        />
                         <InputError :message="form.errors.title" />
                     </div>
 
-                    <div class="grid gap-2">
+                    <div v-if="!isSimple" class="grid gap-2">
                         <Label for="entry-desc">Program / scenár</Label>
                         <Textarea id="entry-desc" v-model="form.description" class="min-h-24" />
                         <InputError :message="form.errors.description" />
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4">
+                    <div v-if="!isSimple" class="grid grid-cols-2 gap-4">
                         <div class="grid gap-2">
                             <Label for="entry-resp">Zodpovedný</Label>
                             <Input id="entry-resp" v-model="form.responsible" placeholder="Meno animátora" />

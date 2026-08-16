@@ -23,7 +23,10 @@ const form = useForm({
     camp_reason: '',
 });
 
-const items = computed<ProgramEntry[]>(() => props.day?.entries ?? []);
+// Only real programme gets rated — nobody needs to score Raňajky out of five.
+const items = computed<ProgramEntry[]>(
+    () => props.day?.entries.filter((e) => e.kind !== 'simple') ?? [],
+);
 
 // The stories are: one screen per activity, then a notes screen, then (last day
 // only) the whole-camp screen.
@@ -61,7 +64,7 @@ watch(
         const existing = props.day.my_review;
         const rows: Record<number, RatingRow> = {};
 
-        for (const e of props.day.entries) {
+        for (const e of items.value) {
             const prev = existing?.ratings?.[e.id];
             rows[e.id] = { rating: prev?.rating ?? 0, reason: prev?.reason ?? '' };
         }

@@ -119,6 +119,7 @@ class PlanVersionController extends Controller
 
                     $day->entries()->create([
                         'activity_id' => in_array((int) $activityId, $liveActivityIds, true) ? $activityId : null,
+                        'kind' => $entry['kind'] ?? 'detailed',
                         'start_time' => $entry['start_time'],
                         'duration' => $entry['duration'],
                         'title' => $entry['title'] ?? null,
@@ -196,6 +197,7 @@ class PlanVersionController extends Controller
             foreach ($day->entries as $entry) {
                 $entries[] = [
                     'activity_id' => $entry->activity_id,
+                    'kind' => $entry->kind,
                     'start_time' => substr((string) $entry->start_time, 0, 5),
                     'duration' => $entry->duration,
                     'title' => $entry->title,

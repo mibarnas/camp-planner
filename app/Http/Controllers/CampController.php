@@ -218,6 +218,7 @@ class CampController extends Controller
                 return [
                     'id' => $entry->id,
                     'activity_id' => $entry->activity_id,
+                    'kind' => $entry->kind,
                     'activity' => $entry->activity?->only(['id', 'name', 'color']),
                     'start_time' => substr((string) $entry->start_time, 0, 5),
                     'duration' => $entry->duration,
@@ -438,6 +439,7 @@ class CampController extends Controller
                     foreach ($oldDay->entries as $entry) {
                         $target->entries()->create([
                             'activity_id' => $entry->activity_id,
+                            'kind' => $entry->kind,
                             'start_time' => $entry->start_time,
                             'duration' => $entry->duration,
                             'title' => $entry->title,

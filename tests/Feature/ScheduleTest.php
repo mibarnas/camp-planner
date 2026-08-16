@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ActivityLibrary;
 use App\Models\Camp;
 use App\Models\PlanVersion;
 use App\Models\ProgramEntry;
@@ -51,6 +52,65 @@ it('sets an entry status', function () {
     $this->actingAs($owner)
         ->put("/program-entries/{$entry->id}/status", ['status' => 'nonsense'])
         ->assertSessionHasErrors('status');
+});
+
+it('creates a simple block with no library link', function () {
+    [$camp, $owner] = makeCamp();
+
+    $this->actingAs($owner)->post('/program-entries', [
+        'camp_day_id' => $camp->days->first()->id,
+        'kind' => 'simple',
+        'start_time' => '08:00',
+        'duration' => 45,
+        'title' => 'Raňajky',
+    ])->assertRedirect();
+
+    $entry = ProgramEntry::firstOrFail();
+
+    expect($entry->kind)->toBe('simple')
+        ->and($entry->title)->toBe('Raňajky')
+        ->and($entry->activity_id)->toBeNull()
+        ->and($entry->isSimple())->toBeTrue();
+});
+
+it('defaults an entry to a detailed activity', function () {
+    [$camp, $owner] = makeCamp();
+
+    $this->actingAs($owner)->post('/program-entries', [
+        'camp_day_id' => $camp->days->first()->id,
+        'start_time' => '09:00',
+        'duration' => 60,
+        'title' => 'Zoznamovačky',
+    ])->assertRedirect();
+
+    expect(ProgramEntry::firstOrFail()->kind)->toBe('detailed');
+});
+
+it('drops the library link when an activity becomes a simple block', function () {
+    [$camp, $owner] = makeCamp();
+    $library = $camp->activityLibrary ?? ActivityLibrary::create([
+        'name' => 'Knižnica', 'owner_id' => $owner->id,
+    ]);
+    $activity = $library->activities()->create([
+        'name' => 'Zoznamovačky', 'default_duration' => 60, 'created_by' => $owner->id,
+    ]);
+    $entry = $camp->days->first()->entries()->create([
+        'activity_id' => $activity->id,
+        'start_time' => '09:00',
+        'duration' => 60,
+        'description' => 'Scenár…',
+    ]);
+
+    $this->actingAs($owner)
+        ->put("/program-entries/{$entry->id}", ['kind' => 'simple'])
+        ->assertRedirect();
+
+    $entry->refresh();
+
+    expect($entry->kind)->toBe('simple')
+        ->and($entry->activity_id)->toBeNull()
+        // The scenario survives, so switching back is not destructive.
+        ->and($entry->description)->toBe('Scenár…');
 });
 
 it('sends the schedule state to the camp page', function () {

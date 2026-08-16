@@ -11,6 +11,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $camp_day_id
  * @property int|null $activity_id
+ * @property string $kind one of detailed|simple
  * @property string $start_time
  * @property int $duration
  * @property string|null $title
@@ -29,6 +30,7 @@ class ProgramEntry extends Model
     protected $fillable = [
         'camp_day_id',
         'activity_id',
+        'kind',
         'start_time',
         'duration',
         'title',
@@ -42,10 +44,23 @@ class ProgramEntry extends Model
     /** Progress states an entry can be in. */
     public const STATUSES = ['todo', 'none', 'done'];
 
-    /** Matches the column default so a just-created entry isn't serialized as null. */
+    /** A full programme activity, or a plain block like a meal or a transfer. */
+    public const KINDS = ['detailed', 'simple'];
+
+    /** Match the column defaults so a just-created entry isn't serialized as null. */
     protected $attributes = [
         'status' => 'none',
+        'kind' => 'detailed',
     ];
+
+    /**
+     * Simple blocks are scaffolding around the programme, not programme itself:
+     * they carry no scenario or materials and aren't worth rating.
+     */
+    public function isSimple(): bool
+    {
+        return $this->kind === 'simple';
+    }
 
     /**
      * @return array<string, string>
