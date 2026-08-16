@@ -972,9 +972,11 @@ return;
                         <!-- Handles for this day's blocks: always on top, never covered
                              by an activity. Hidden blocks stay here as a dashed ghost so
                              they can be brought back. -->
+                        <!-- Stays above the activity cards but below the sticky day
+                             column (z-10), so it scrolls under it like everything else. -->
                         <div
                             data-slotbar
-                            class="absolute top-0 right-0 left-0 z-20"
+                            class="absolute top-0 right-0 left-0 z-[5]"
                             :style="{ height: BAR_H + 'px' }"
                             @click.stop
                         >
