@@ -284,7 +284,7 @@ function submitDuplicate() {
 <template>
     <Head :title="camp.name" />
 
-    <div class="flex h-full flex-1 flex-col gap-4 p-4">
+    <div class="flex h-full flex-1 flex-col gap-3 p-2 sm:gap-4 sm:p-4">
         <!-- Header -->
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="flex items-center gap-3">
@@ -368,7 +368,7 @@ function submitDuplicate() {
                     Presúvanie zapneš tlačidlom <strong>Upravovať</strong>.
                 </template>
             </p>
-            <p v-else class="text-xs text-muted-foreground">
+            <p v-else class="hidden text-xs text-muted-foreground sm:block">
                 Klikni do voľného miesta a pridaj aktivitu. Aktivitu <strong>potiahni</strong> pre presun,
                 za pravý okraj pre zmenu dĺžky. <strong>Ctrl+klik</strong> označí viac aktivít (presúvajú sa
                 spolu), <strong>pravý klik</strong> otvorí menu. Farebné <strong>štítky blokov</strong> nad

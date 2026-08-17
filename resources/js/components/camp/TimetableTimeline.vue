@@ -19,7 +19,8 @@ import {
     ZoomIn,
     ZoomOut,
 } from '@lucide/vue';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useMediaQuery } from '@vueuse/core';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { colorStyle } from '@/lib/campColors';
@@ -72,6 +73,11 @@ const CARD_GAP = 4;
 const SNAP = 5; // minutes
 const MIN_PX = 1.3;
 
+// Below Tailwind's `sm`, the day label moves to a strip above each track — a
+// 156px column would eat nearly half of a phone's width.
+const isMobile = useMediaQuery('(max-width: 639px)');
+const labelW = computed(() => (isMobile.value ? 0 : LABEL_W));
+
 const wrapEl = ref<HTMLElement | null>(null);
 const containerW = ref(1200);
 let resizeObserver: ResizeObserver | null = null;
@@ -93,11 +99,11 @@ return;
     if (el && anchorClientX !== undefined) {
         // Keep the time under the cursor in place while zooming.
         const rect = el.getBoundingClientRect();
-        const contentX = el.scrollLeft + (anchorClientX - rect.left) - LABEL_W;
+        const contentX = el.scrollLeft + (anchorClientX - rect.left) - labelW.value;
         const ratio = next / zoom.value;
         zoom.value = next;
         requestAnimationFrame(() => {
-            el.scrollLeft = contentX * ratio - (anchorClientX - rect.left) + LABEL_W;
+            el.scrollLeft = contentX * ratio - (anchorClientX - rect.left) + labelW.value;
         });
     } else {
         zoom.value = next;
@@ -136,9 +142,12 @@ onBeforeUnmount(() => {
 const bounds = computed(() => dayBounds(props.slots, props.days));
 const totalMin = computed(() => bounds.value.end - bounds.value.start);
 const pxPerMin = computed(
-    () => Math.max(MIN_PX, (containerW.value - LABEL_W - 2) / totalMin.value) * zoom.value,
+    () => Math.max(MIN_PX, (containerW.value - labelW.value - 2) / totalMin.value) * zoom.value,
 );
 const trackWidth = computed(() => totalMin.value * pxPerMin.value);
+// The mobile day strip spans the visible scrollport, but never wider than the row
+// itself — an overflowing strip would add its own sliver of horizontal scroll.
+const stripW = computed(() => Math.min(containerW.value, labelW.value + trackWidth.value));
 
 const hourTicks = computed(() => {
     const ticks: number[] = [];
@@ -289,6 +298,29 @@ type ContextMenuState = {
     startMin: number;
 };
 const contextMenu = ref<ContextMenuState | null>(null);
+const menuEl = ref<HTMLElement | null>(null);
+
+// Open at the pointer, then pull back inside the viewport — near the right or
+// bottom edge of a phone the menu would otherwise render off-screen.
+watch(contextMenu, async (menu) => {
+    if (!menu) {
+return;
+}
+
+    await nextTick();
+    const rect = menuEl.value?.getBoundingClientRect();
+
+    if (!rect) {
+return;
+}
+
+    const x = Math.max(8, Math.min(menu.x, window.innerWidth - rect.width - 8));
+    const y = Math.max(8, Math.min(menu.y, window.innerHeight - rect.height - 8));
+
+    if (x !== menu.x || y !== menu.y) {
+        contextMenu.value = { ...menu, x, y };
+    }
+});
 
 function openCardMenu(e: MouseEvent, day: CampDay, entry: ProgramEntry) {
     if (!props.editable) {
@@ -829,16 +861,17 @@ return;
         </div>
 
         <div ref="wrapEl" class="overflow-x-auto rounded-xl border bg-card select-none">
-            <div :style="{ minWidth: LABEL_W + trackWidth + 'px' }">
+            <div :style="{ minWidth: labelW + trackWidth + 'px' }">
                 <!-- Header: hour ruler + block guides (the camp-wide template) -->
                 <div class="sticky top-0 z-30 flex border-b bg-muted/80 backdrop-blur">
                     <div
+                        v-if="!isMobile"
                         class="sticky left-0 z-10 flex shrink-0 items-end bg-muted/80 p-2 text-xs font-medium text-muted-foreground backdrop-blur"
                         :style="{ width: LABEL_W + 'px' }"
                     >
                         Deň / Čas
                     </div>
-                    <div class="relative" :style="{ width: trackWidth + 'px', height: '54px' }">
+                    <div class="relative h-10 sm:h-[54px]" :style="{ width: trackWidth + 'px' }">
                         <div
                             v-for="t in hourTicks"
                             :key="'h' + t"
@@ -850,7 +883,7 @@ return;
                         <div
                             v-for="slot in slots"
                             :key="slot.id"
-                            class="absolute bottom-1 flex h-8 flex-col justify-center overflow-hidden rounded border px-1.5"
+                            class="absolute bottom-1 hidden h-8 flex-col justify-center overflow-hidden rounded border px-1.5 sm:flex"
                             :class="colorStyle(slot.color).cell"
                             :style="{ left: xFor(timeToMin(slot.start_time)) + 'px', width: wFor(timeToMin(slot.end_time) - timeToMin(slot.start_time)) - 2 + 'px' }"
                         >
@@ -868,243 +901,315 @@ return;
                 <div
                     v-for="row in layout"
                     :key="row.day.id"
-                    class="flex border-b last:border-b-0"
+                    class="border-b last:border-b-0"
                     :class="row.day.is_trip ? 'bg-fuchsia-50/60 dark:bg-fuchsia-950/20' : ''"
                 >
+                    <!-- Mobile: the day label sits above its track, pinned to the
+                         viewport so it stays put while the track scrolls sideways. -->
                     <div
-                        class="group/day sticky left-0 z-10 shrink-0 border-r p-2 backdrop-blur"
+                        v-if="isMobile"
+                        class="sticky left-0 z-10 border-b p-2"
                         :class="row.day.is_trip ? 'bg-fuchsia-50 dark:bg-fuchsia-950/30' : 'bg-card'"
-                        :style="{ width: LABEL_W + 'px' }"
+                        :style="{ width: stripW + 'px' }"
                     >
-                        <div class="flex items-start justify-between gap-1">
-                            <div>
-                                <p class="font-semibold leading-tight">{{ capitalize(row.day.weekday) }}</p>
-                                <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                    {{ row.day.label }}
-                                    <span
-                                        v-if="row.day.review_summary.avg != null"
-                                        class="flex items-center gap-0.5 text-amber-500"
-                                        :title="`Priemer ${row.day.review_summary.avg} · ${row.day.review_summary.reviewers} hodnotení`"
-                                    >
-                                        <Star class="size-3 fill-amber-400 text-amber-400" />{{ row.day.review_summary.avg }}
-                                    </span>
-                                </p>
-                            </div>
-                            <div class="flex gap-0.5 opacity-0 transition group-hover/day:opacity-100">
+                        <div class="flex items-center justify-between gap-2">
+                            <p class="min-w-0 truncate font-semibold leading-tight">
+                                {{ capitalize(row.day.weekday) }}
+                                <span class="font-normal text-muted-foreground">{{ row.day.label }}</span>
+                                <span
+                                    v-if="row.day.review_summary.avg != null"
+                                    class="ml-1 inline-flex items-center gap-0.5 align-middle text-xs font-normal text-amber-500"
+                                    :title="`Priemer ${row.day.review_summary.avg} · ${row.day.review_summary.reviewers} hodnotení`"
+                                >
+                                    <Star class="size-3 fill-amber-400 text-amber-400" />{{ row.day.review_summary.avg }}
+                                </span>
+                            </p>
+                            <div class="flex shrink-0 gap-1">
                                 <button
-                                    class="rounded p-1 hover:bg-accent"
+                                    class="flex size-10 items-center justify-center rounded-md hover:bg-accent"
                                     :class="row.day.my_review ? 'text-amber-500' : 'text-muted-foreground'"
                                     title="Zhodnotiť deň"
                                     @click="emit('review', row.day)"
                                 >
-                                    <Star class="size-3.5" :class="row.day.my_review ? 'fill-amber-400' : ''" />
+                                    <Star class="size-4" :class="row.day.my_review ? 'fill-amber-400' : ''" />
                                 </button>
                                 <button
-                                    class="rounded p-1 text-muted-foreground hover:bg-accent"
+                                    class="flex size-10 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
                                     title="Pridať aktivitu"
                                     @click="emit('add', row.day, bounds.start)"
                                 >
-                                    <Plus class="size-3.5" />
+                                    <Plus class="size-4" />
                                 </button>
                                 <button
-                                    class="rounded p-1 text-muted-foreground hover:bg-accent"
+                                    class="flex size-10 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
                                     title="Upraviť deň"
                                     @click="emit('editDay', row.day)"
                                 >
-                                    <Pencil class="size-3.5" />
+                                    <Pencil class="size-4" />
                                 </button>
                             </div>
                         </div>
                         <div
-                            v-if="row.day.is_trip"
-                            class="mt-1 flex items-center gap-1 rounded bg-fuchsia-100 px-1.5 py-0.5 text-[11px] text-fuchsia-800 dark:bg-fuchsia-900/50 dark:text-fuchsia-200"
+                            v-if="row.day.is_trip || row.day.name_days || row.day.birthdays || row.day.materials"
+                            class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-tight"
                         >
-                            <MapPin class="size-3 shrink-0" />
-                            <span class="truncate">{{ row.day.trip_name || 'Výlet' }}</span>
+                            <span
+                                v-if="row.day.is_trip"
+                                class="flex items-center gap-1 rounded bg-fuchsia-100 px-1.5 py-0.5 text-fuchsia-800 dark:bg-fuchsia-900/50 dark:text-fuchsia-200"
+                            >
+                                <MapPin class="size-3 shrink-0" />{{ row.day.trip_name || 'Výlet' }}
+                            </span>
+                            <span v-if="row.day.name_days" class="text-muted-foreground">
+                                <span class="font-medium">Meniny:</span> {{ row.day.name_days }}
+                            </span>
+                            <span v-if="row.day.birthdays" class="text-muted-foreground">🎂 {{ row.day.birthdays }}</span>
+                            <span
+                                v-if="row.day.materials"
+                                class="flex min-w-0 items-center gap-1 text-amber-700 dark:text-amber-400"
+                            >
+                                <Package class="size-3 shrink-0" />
+                                <span class="line-clamp-1">{{ row.day.materials }}</span>
+                            </span>
                         </div>
-                        <p v-if="row.day.name_days" class="mt-1 text-[11px] leading-tight text-muted-foreground">
-                            <span class="font-medium">Meniny:</span> {{ row.day.name_days }}
-                        </p>
-                        <p v-if="row.day.birthdays" class="text-[11px] leading-tight text-muted-foreground">
-                            🎂 {{ row.day.birthdays }}
-                        </p>
-                        <p
-                            v-if="row.day.materials"
-                            class="mt-1 flex items-start gap-1 text-[11px] leading-tight text-amber-700 dark:text-amber-400"
-                        >
-                            <Package class="mt-px size-3 shrink-0" />
-                            <span class="line-clamp-2">{{ row.day.materials }}</span>
-                        </p>
                     </div>
 
-                    <!-- Track -->
-                    <div
-                        class="relative"
-                        :style="{ width: trackWidth + 'px', height: row.height + 'px' }"
-                        @click="onTrackClick($event, row.day)"
-                        @contextmenu="openTrackMenu($event, row.day)"
-                    >
-                        <!-- Block tint: background only, so it never competes with
-                             the cards or with click-to-add. -->
+                    <div class="flex">
                         <div
-                            v-for="slot in row.slots"
-                            :key="'bg' + slot.id"
-                            class="pointer-events-none absolute bottom-0 border-l"
-                            :class="[
-                                colorStyle(slot.color).cell,
-                                slot.kind === 'fixed' ? 'opacity-90' : 'opacity-40',
-                                slot.overridden ? 'border-solid' : 'border-dashed',
-                            ]"
-                            :style="{
-                                top: BAR_H + 'px',
-                                left: xFor(timeToMin(slot.start_time)) + 'px',
-                                width: wFor(timeToMin(slot.end_time) - timeToMin(slot.start_time)) + 'px',
-                            }"
+                            v-if="!isMobile"
+                            class="group/day sticky left-0 z-10 shrink-0 border-r p-2 backdrop-blur"
+                            :class="row.day.is_trip ? 'bg-fuchsia-50 dark:bg-fuchsia-950/30' : 'bg-card'"
+                            :style="{ width: LABEL_W + 'px' }"
                         >
-                            <span
-                                v-if="slot.kind === 'fixed'"
-                                class="absolute inset-0 flex items-center justify-center text-[11px] font-medium text-muted-foreground"
+                            <div class="flex items-start justify-between gap-1">
+                                <div>
+                                    <p class="font-semibold leading-tight">{{ capitalize(row.day.weekday) }}</p>
+                                    <p class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                        {{ row.day.label }}
+                                        <span
+                                            v-if="row.day.review_summary.avg != null"
+                                            class="flex items-center gap-0.5 text-amber-500"
+                                            :title="`Priemer ${row.day.review_summary.avg} · ${row.day.review_summary.reviewers} hodnotení`"
+                                        >
+                                            <Star class="size-3 fill-amber-400 text-amber-400" />{{ row.day.review_summary.avg }}
+                                        </span>
+                                    </p>
+                                </div>
+                                <div class="flex gap-0.5 opacity-0 transition group-hover/day:opacity-100 pointer-coarse:opacity-100">
+                                    <button
+                                        class="rounded p-1 hover:bg-accent"
+                                        :class="row.day.my_review ? 'text-amber-500' : 'text-muted-foreground'"
+                                        title="Zhodnotiť deň"
+                                        @click="emit('review', row.day)"
+                                    >
+                                        <Star class="size-3.5" :class="row.day.my_review ? 'fill-amber-400' : ''" />
+                                    </button>
+                                    <button
+                                        class="rounded p-1 text-muted-foreground hover:bg-accent"
+                                        title="Pridať aktivitu"
+                                        @click="emit('add', row.day, bounds.start)"
+                                    >
+                                        <Plus class="size-3.5" />
+                                    </button>
+                                    <button
+                                        class="rounded p-1 text-muted-foreground hover:bg-accent"
+                                        title="Upraviť deň"
+                                        @click="emit('editDay', row.day)"
+                                    >
+                                        <Pencil class="size-3.5" />
+                                    </button>
+                                </div>
+                            </div>
+                            <div
+                                v-if="row.day.is_trip"
+                                class="mt-1 flex items-center gap-1 rounded bg-fuchsia-100 px-1.5 py-0.5 text-[11px] text-fuchsia-800 dark:bg-fuchsia-900/50 dark:text-fuchsia-200"
                             >
-                                {{ slot.name }}
-                            </span>
+                                <MapPin class="size-3 shrink-0" />
+                                <span class="truncate">{{ row.day.trip_name || 'Výlet' }}</span>
+                            </div>
+                            <p v-if="row.day.name_days" class="mt-1 text-[11px] leading-tight text-muted-foreground">
+                                <span class="font-medium">Meniny:</span> {{ row.day.name_days }}
+                            </p>
+                            <p v-if="row.day.birthdays" class="text-[11px] leading-tight text-muted-foreground">
+                                🎂 {{ row.day.birthdays }}
+                            </p>
+                            <p
+                                v-if="row.day.materials"
+                                class="mt-1 flex items-start gap-1 text-[11px] leading-tight text-amber-700 dark:text-amber-400"
+                            >
+                                <Package class="mt-px size-3 shrink-0" />
+                                <span class="line-clamp-2">{{ row.day.materials }}</span>
+                            </p>
                         </div>
 
-                        <!-- Handles for this day's blocks: always on top, never covered
-                             by an activity. Hidden blocks stay here as a dashed ghost so
-                             they can be brought back. -->
-                        <!-- Stays above the activity cards but below the sticky day
-                             column (z-10), so it scrolls under it like everything else. -->
+                        <!-- Track -->
                         <div
-                            data-slotbar
-                            class="absolute top-0 right-0 left-0 z-[5]"
-                            :style="{ height: BAR_H + 'px' }"
-                            @click.stop
+                            class="relative"
+                            :style="{ width: trackWidth + 'px', height: row.height + 'px' }"
+                            @click="onTrackClick($event, row.day)"
+                            @contextmenu="openTrackMenu($event, row.day)"
                         >
+                            <!-- Block tint: background only, so it never competes with
+                                 the cards or with click-to-add. -->
                             <div
-                                v-for="slot in [...row.slots, ...row.hiddenSlots]"
-                                :key="'chip' + slot.id"
-                                class="absolute top-0.5 flex items-center overflow-hidden rounded-sm border px-1"
+                                v-for="slot in row.slots"
+                                :key="'bg' + slot.id"
+                                class="pointer-events-none absolute bottom-0 border-l"
                                 :class="[
                                     colorStyle(slot.color).cell,
-                                    slot.hidden ? 'border-dashed opacity-50' : '',
-                                    slot.overridden ? 'ring-1 ring-foreground/30' : '',
-                                    editable ? (slot.hidden ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing') : 'cursor-default',
+                                    slot.kind === 'fixed' ? 'opacity-90' : 'opacity-40',
+                                    slot.overridden ? 'border-solid' : 'border-dashed',
                                 ]"
                                 :style="{
+                                    top: BAR_H + 'px',
                                     left: xFor(timeToMin(slot.start_time)) + 'px',
-                                    width: Math.max(10, wFor(timeToMin(slot.end_time) - timeToMin(slot.start_time)) - 2) + 'px',
-                                    height: BAR_H - 4 + 'px',
-                                    touchAction: editable ? 'none' : 'auto',
+                                    width: wFor(timeToMin(slot.end_time) - timeToMin(slot.start_time)) + 'px',
                                 }"
-                                :title="slotTooltip(slot)"
-                                @pointerdown="beginSlotDrag($event, slot, row.day)"
-                                @contextmenu="openSlotMenu($event, row.day, slot)"
                             >
-                                <EyeOff v-if="slot.hidden" class="mr-0.5 size-2.5 shrink-0" />
-                                <span class="truncate text-[10px] leading-none font-medium">{{ slot.name }}</span>
+                                <span
+                                    v-if="slot.kind === 'fixed'"
+                                    class="absolute inset-0 flex items-center justify-center text-[11px] font-medium text-muted-foreground"
+                                >
+                                    {{ slot.name }}
+                                </span>
+                            </div>
+
+                            <!-- Handles for this day's blocks: always on top, never covered
+                                 by an activity. Hidden blocks stay here as a dashed ghost so
+                                 they can be brought back. -->
+                            <!-- Stays above the activity cards but below the sticky day
+                                 column (z-10), so it scrolls under it like everything else. -->
+                            <div
+                                data-slotbar
+                                class="absolute top-0 right-0 left-0 z-[5]"
+                                :style="{ height: BAR_H + 'px' }"
+                                @click.stop
+                            >
                                 <div
-                                    v-if="editable && !slot.hidden"
-                                    data-slotresize
-                                    class="absolute top-0 right-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-foreground/20"
-                                    title="Potiahni pre zmenu dĺžky bloku (len tento deň)"
-                                />
-                            </div>
-                        </div>
-
-                        <div
-                            v-for="t in hourTicks"
-                            :key="'g' + t"
-                            class="pointer-events-none absolute top-0 bottom-0 w-px bg-border/60"
-                            :style="{ left: xFor(t) + 'px' }"
-                        />
-
-                        <!-- Activity cards -->
-                        <div
-                            v-for="item in row.items"
-                            :key="item.entry.id"
-                            data-card
-                            class="absolute flex flex-col overflow-hidden rounded-md border shadow-sm transition-shadow hover:shadow-md"
-                            :class="[
-                                colorStyle(cardColor(item.entry, row.slots)).cell,
-                                item.entry.kind === 'simple' ? 'border-l-2 border-dashed opacity-80' : 'border-l-4',
-                                editable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
-                                isSelected(item.entry)
-                                    ? 'ring-2 ring-primary'
-                                    : item.entry.status === 'todo'
-                                      ? 'ring-1 ring-amber-500/70'
-                                      : '',
-                            ]"
-                            :style="{
-                                left: xFor(timeToMin(item.entry.start_time)) + 'px',
-                                width: Math.max(24, wFor(item.entry.duration) - 2) + 'px',
-                                top: BAR_H + PAD + item.lane * LANE_H + 'px',
-                                height: LANE_H - CARD_GAP + 'px',
-                                touchAction: editable ? 'none' : 'auto',
-                            }"
-                            :title="cardTooltip(item.entry)"
-                            @pointerdown="beginDrag($event, item.entry, row.day)"
-                            @contextmenu="openCardMenu($event, row.day, item.entry)"
-                            @click.stop="onCardClick(row.day, item.entry)"
-                        >
-                            <div class="flex items-start justify-between gap-1 px-1.5 pt-1">
-                                <span
-                                    class="flex min-w-0 items-center gap-1 truncate text-xs leading-tight"
-                                    :class="item.entry.kind === 'simple' ? 'font-medium text-muted-foreground' : 'font-semibold'"
-                                >
-                                    <Coffee v-if="item.entry.kind === 'simple'" class="size-3 shrink-0" />
-                                    <span class="truncate">
-                                        {{ item.entry.title || item.entry.activity?.name || 'Aktivita' }}
-                                    </span>
-                                </span>
-                                <span
-                                    data-nodrag
-                                    class="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border"
+                                    v-for="slot in [...row.slots, ...row.hiddenSlots]"
+                                    :key="'chip' + slot.id"
+                                    class="absolute top-0.5 flex items-center overflow-hidden rounded-sm border px-1"
                                     :class="[
-                                        editable ? 'cursor-pointer' : '',
-                                        item.entry.status === 'done'
-                                            ? 'border-emerald-500 bg-emerald-500 text-white'
-                                            : item.entry.status === 'todo'
-                                              ? 'border-amber-500 bg-amber-500 text-white'
-                                              : 'border-muted-foreground/40 bg-background/50',
+                                        colorStyle(slot.color).cell,
+                                        slot.hidden ? 'border-dashed opacity-50' : '',
+                                        slot.overridden ? 'ring-1 ring-foreground/30' : '',
+                                        editable ? (slot.hidden ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing') : 'cursor-default',
                                     ]"
-                                    :title="statusTitle(item.entry)"
-                                    @click.stop="editable && cycleStatus(item.entry)"
-                                    @pointerdown.stop
+                                    :style="{
+                                        left: xFor(timeToMin(slot.start_time)) + 'px',
+                                        width: Math.max(10, wFor(timeToMin(slot.end_time) - timeToMin(slot.start_time)) - 2) + 'px',
+                                        height: BAR_H - 4 + 'px',
+                                        touchAction: editable ? 'none' : 'auto',
+                                    }"
+                                    :title="slotTooltip(slot)"
+                                    @pointerdown="beginSlotDrag($event, slot, row.day)"
+                                    @contextmenu="openSlotMenu($event, row.day, slot)"
                                 >
-                                    <Check v-if="item.entry.status === 'done'" class="size-3" />
-                                    <span v-else-if="item.entry.status === 'todo'" class="text-[9px] leading-none font-bold">!</span>
-                                </span>
+                                    <EyeOff v-if="slot.hidden" class="mr-0.5 size-2.5 shrink-0" />
+                                    <span class="truncate text-[10px] leading-none font-medium">{{ slot.name }}</span>
+                                    <div
+                                        v-if="editable && !slot.hidden"
+                                        data-slotresize
+                                        class="absolute top-0 right-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-foreground/20"
+                                        title="Potiahni pre zmenu dĺžky bloku (len tento deň)"
+                                    />
+                                </div>
                             </div>
-                            <div class="flex items-center gap-1 truncate px-1.5 text-[10px] text-muted-foreground">
-                                <span class="truncate">
-                                    {{ item.entry.start_time }} · {{ durationLabel(item.entry.duration) }}
-                                </span>
-                                <StickyNote
-                                    v-if="item.entry.notes"
-                                    class="size-3 shrink-0 text-amber-600 dark:text-amber-400"
-                                />
-                                <span
-                                    v-if="item.entry.avg_rating != null"
-                                    class="ml-auto flex shrink-0 items-center gap-0.5 font-medium text-amber-500"
-                                    :title="`${item.entry.rating_count} hodnotení`"
-                                >
-                                    <Star class="size-2.5 fill-amber-400 text-amber-400" />{{ item.entry.avg_rating }}
-                                </span>
-                            </div>
-                            <span
-                                v-if="item.entry.responsible"
-                                class="mx-1.5 mt-1 mb-1 flex w-fit max-w-[calc(100%-0.75rem)] items-center gap-0.5 truncate rounded bg-background/70 px-1 py-px text-[10px] font-medium"
-                            >
-                                <User class="size-2.5 shrink-0" />
-                                <span class="truncate">{{ item.entry.responsible }}</span>
-                            </span>
 
                             <div
-                                v-if="editable"
-                                data-resize
-                                class="absolute top-0 right-0 bottom-0 w-2 cursor-ew-resize hover:bg-foreground/10"
-                                title="Potiahni pre zmenu dĺžky"
+                                v-for="t in hourTicks"
+                                :key="'g' + t"
+                                class="pointer-events-none absolute top-0 bottom-0 w-px bg-border/60"
+                                :style="{ left: xFor(t) + 'px' }"
                             />
+
+                            <!-- Activity cards -->
+                            <div
+                                v-for="item in row.items"
+                                :key="item.entry.id"
+                                data-card
+                                class="absolute flex flex-col overflow-hidden rounded-md border shadow-sm transition-shadow hover:shadow-md"
+                                :class="[
+                                    colorStyle(cardColor(item.entry, row.slots)).cell,
+                                    item.entry.kind === 'simple' ? 'border-l-2 border-dashed opacity-80' : 'border-l-4',
+                                    editable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
+                                    isSelected(item.entry)
+                                        ? 'ring-2 ring-primary'
+                                        : item.entry.status === 'todo'
+                                          ? 'ring-1 ring-amber-500/70'
+                                          : '',
+                                ]"
+                                :style="{
+                                    left: xFor(timeToMin(item.entry.start_time)) + 'px',
+                                    width: Math.max(24, wFor(item.entry.duration) - 2) + 'px',
+                                    top: BAR_H + PAD + item.lane * LANE_H + 'px',
+                                    height: LANE_H - CARD_GAP + 'px',
+                                    touchAction: editable ? 'none' : 'auto',
+                                }"
+                                :title="cardTooltip(item.entry)"
+                                @pointerdown="beginDrag($event, item.entry, row.day)"
+                                @contextmenu="openCardMenu($event, row.day, item.entry)"
+                                @click.stop="onCardClick(row.day, item.entry)"
+                            >
+                                <div class="flex items-start justify-between gap-1 px-1.5 pt-1">
+                                    <span
+                                        class="flex min-w-0 items-center gap-1 truncate text-xs leading-tight"
+                                        :class="item.entry.kind === 'simple' ? 'font-medium text-muted-foreground' : 'font-semibold'"
+                                    >
+                                        <Coffee v-if="item.entry.kind === 'simple'" class="size-3 shrink-0" />
+                                        <span class="truncate">
+                                            {{ item.entry.title || item.entry.activity?.name || 'Aktivita' }}
+                                        </span>
+                                    </span>
+                                    <span
+                                        data-nodrag
+                                        class="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border"
+                                        :class="[
+                                            editable ? 'cursor-pointer' : '',
+                                            item.entry.status === 'done'
+                                                ? 'border-emerald-500 bg-emerald-500 text-white'
+                                                : item.entry.status === 'todo'
+                                                  ? 'border-amber-500 bg-amber-500 text-white'
+                                                  : 'border-muted-foreground/40 bg-background/50',
+                                        ]"
+                                        :title="statusTitle(item.entry)"
+                                        @click.stop="editable && cycleStatus(item.entry)"
+                                        @pointerdown.stop
+                                    >
+                                        <Check v-if="item.entry.status === 'done'" class="size-3" />
+                                        <span v-else-if="item.entry.status === 'todo'" class="text-[9px] leading-none font-bold">!</span>
+                                    </span>
+                                </div>
+                                <div class="flex items-center gap-1 truncate px-1.5 text-[10px] text-muted-foreground">
+                                    <span class="truncate">
+                                        {{ item.entry.start_time }} · {{ durationLabel(item.entry.duration) }}
+                                    </span>
+                                    <StickyNote
+                                        v-if="item.entry.notes"
+                                        class="size-3 shrink-0 text-amber-600 dark:text-amber-400"
+                                    />
+                                    <span
+                                        v-if="item.entry.avg_rating != null"
+                                        class="ml-auto flex shrink-0 items-center gap-0.5 font-medium text-amber-500"
+                                        :title="`${item.entry.rating_count} hodnotení`"
+                                    >
+                                        <Star class="size-2.5 fill-amber-400 text-amber-400" />{{ item.entry.avg_rating }}
+                                    </span>
+                                </div>
+                                <span
+                                    v-if="item.entry.responsible"
+                                    class="mx-1.5 mt-1 mb-1 flex w-fit max-w-[calc(100%-0.75rem)] items-center gap-0.5 truncate rounded bg-background/70 px-1 py-px text-[10px] font-medium"
+                                >
+                                    <User class="size-2.5 shrink-0" />
+                                    <span class="truncate">{{ item.entry.responsible }}</span>
+                                </span>
+
+                                <div
+                                    v-if="editable"
+                                    data-resize
+                                    class="absolute top-0 right-0 bottom-0 w-2 cursor-ew-resize hover:bg-foreground/10"
+                                    title="Potiahni pre zmenu dĺžky"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1115,14 +1220,15 @@ return;
         <div v-if="contextMenu" class="fixed inset-0 z-40" @click="closeMenu" @contextmenu.prevent="closeMenu" />
         <div
             v-if="contextMenu"
+            ref="menuEl"
             class="fixed z-50 min-w-44 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
             :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
         >
                 <template v-if="contextMenu.entry">
-                    <button class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent" @click="menuEdit">
+                    <button class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent pointer-coarse:py-2.5" @click="menuEdit">
                         <Pencil class="size-4" /> Upraviť
                     </button>
-                    <button class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent" @click="menuToggleSelect">
+                    <button class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent pointer-coarse:py-2.5" @click="menuToggleSelect">
                         <CheckSquare class="size-4" />
                         {{ isSelected(contextMenu.entry) ? 'Odznačiť' : 'Označiť' }}
                     </button>
@@ -1130,7 +1236,7 @@ return;
                     <button
                         v-for="s in OTHER_STATUSES.filter((s) => s !== contextMenu!.entry!.status)"
                         :key="s"
-                        class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                        class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent pointer-coarse:py-2.5"
                         @click="menuSetStatus(s)"
                     >
                         <Check class="size-4" /> Označiť ako {{ STATUS_LABELS[s] }}
@@ -1151,28 +1257,28 @@ return;
                     </p>
                     <button
                         v-if="contextMenu.slot.hidden"
-                        class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                        class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent pointer-coarse:py-2.5"
                         @click="menuSlotHidden(false)"
                     >
                         <Eye class="size-4" /> Zobraziť v tomto dni
                     </button>
                     <button
                         v-else
-                        class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                        class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent pointer-coarse:py-2.5"
                         @click="menuSlotHidden(true)"
                     >
                         <EyeOff class="size-4" /> Skryť v tomto dni
                     </button>
                     <button
                         v-if="contextMenu.slot.overridden"
-                        class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                        class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent pointer-coarse:py-2.5"
                         @click="menuSlotReset"
                     >
                         <RotateCcw class="size-4" /> Obnoviť podľa šablóny
                     </button>
                 </template>
                 <template v-else>
-                    <button class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent" @click="menuAdd">
+                    <button class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent pointer-coarse:py-2.5" @click="menuAdd">
                         <Plus class="size-4" /> Pridať aktivitu o {{ minToTime(contextMenu.startMin) }}
                     </button>
                 </template>
