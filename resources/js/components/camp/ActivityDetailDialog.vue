@@ -74,7 +74,7 @@ return;
             </DialogHeader>
 
             <!-- Quick facts -->
-            <div class="grid grid-cols-2 gap-2">
+            <div class="grid gap-2 sm:grid-cols-2">
                 <div class="flex items-center gap-2 rounded-lg border p-2.5">
                     <Clock class="size-4 text-muted-foreground" />
                     <div>
@@ -93,7 +93,7 @@ return;
                 </div>
             </div>
 
-            <div class="grid max-h-[45vh] gap-4 overflow-y-auto px-0.5">
+            <div class="grid gap-4 px-0.5">
                 <div v-if="activity.description">
                     <p class="mb-1 text-xs font-medium text-muted-foreground">Popis / scenár</p>
                     <p class="text-sm whitespace-pre-line">{{ activity.description }}</p>

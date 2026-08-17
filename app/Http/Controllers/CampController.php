@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Activity;
 use App\Models\ActivityLibrary;
+use App\Models\AiSummary;
 use App\Models\Camp;
 use App\Models\CampDay;
 use App\Models\PlanVersion;
@@ -11,6 +12,7 @@ use App\Models\ProgramEntry;
 use App\Models\TimeSlot;
 use App\Models\TimeSlotOverride;
 use App\Models\User;
+use App\Support\Markdown;
 use App\Support\NameDays;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -305,6 +307,14 @@ class CampController extends Controller
                     'name' => $v->name,
                     'author' => $v->user?->name,
                     'created_at' => $v->created_at?->toIso8601String(),
+                ])->values(),
+            'aiSummaries' => $camp->aiSummaries()->with('user:id,name')->get()
+                ->map(fn (AiSummary $s) => [
+                    'camp_day_id' => $s->camp_day_id,
+                    'summary' => $s->summary,
+                    'summary_html' => Markdown::toHtml($s->summary),
+                    'author' => $s->user?->name,
+                    'saved_at' => $s->updated_at?->toIso8601String(),
                 ])->values(),
             'members' => $camp->members->map(fn (User $m) => [
                 'id' => $m->id,

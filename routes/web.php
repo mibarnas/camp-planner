@@ -8,6 +8,7 @@ use App\Http\Controllers\CampDayController;
 use App\Http\Controllers\CampMemberController;
 use App\Http\Controllers\DayReviewController;
 use App\Http\Controllers\InvitationController;
+use App\Http\Controllers\LibraryVersionController;
 use App\Http\Controllers\PlanVersionController;
 use App\Http\Controllers\ProgramEntryController;
 use App\Http\Controllers\SummaryController;
@@ -102,6 +103,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('libraries/{library}/share-link', [ActivityLibraryController::class, 'destroyShareLink'])->name('libraries.shareLink.destroy');
     Route::get('libraries/{library}/export', [ActivityLibraryController::class, 'export'])->name('libraries.export');
     Route::post('libraries/{library}/import', [ActivityLibraryController::class, 'import'])->name('libraries.import');
+
+    // Saved snapshots of a library's activities
+    Route::post('libraries/{library}/versions', [LibraryVersionController::class, 'store'])->name('libraries.versions.store');
+    // The parameter name drives the scoped lookup: {libraryVersion} -> ActivityLibrary::libraryVersions()
+    Route::post('libraries/{library}/versions/{libraryVersion}/restore', [LibraryVersionController::class, 'restore'])
+        ->scopeBindings()->name('libraries.versions.restore');
+    Route::delete('libraries/{library}/versions/{libraryVersion}', [LibraryVersionController::class, 'destroy'])
+        ->scopeBindings()->name('libraries.versions.destroy');
 
     // Activity categories (user-defined tags, scoped to a library)
     Route::post('libraries/{library}/categories', [ActivityCategoryController::class, 'store'])->name('categories.store');

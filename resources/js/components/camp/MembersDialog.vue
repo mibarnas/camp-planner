@@ -138,7 +138,7 @@ async function copyLink(invitation: CampInvitation) {
                 </template>
             </div>
 
-            <form v-if="isOwner" class="flex items-end gap-2" @submit.prevent="invite">
+            <form v-if="isOwner" class="flex flex-col gap-2 sm:flex-row sm:items-end" @submit.prevent="invite">
                 <div class="grid flex-1 gap-2">
                     <Label for="invite-email">Pozvať e-mailom</Label>
                     <Input id="invite-email" v-model="form.email" type="email" placeholder="animator@farnost.sk" />

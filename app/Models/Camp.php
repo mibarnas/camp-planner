@@ -107,6 +107,14 @@ class Camp extends Model
     }
 
     /**
+     * @return HasMany<AiSummary, $this>
+     */
+    public function aiSummaries(): HasMany
+    {
+        return $this->hasMany(AiSummary::class);
+    }
+
+    /**
      * @return BelongsTo<ActivityLibrary, $this>
      */
     public function activityLibrary(): BelongsTo

@@ -138,7 +138,7 @@ function submit() {
         <DialogContent
             v-if="day"
             :show-close-button="false"
-            class="flex h-[100svh] max-h-[860px] w-full flex-col gap-0 overflow-hidden border-0 bg-neutral-950 p-0 text-white sm:h-[85svh] sm:max-w-md sm:rounded-3xl"
+            class="flex h-[100svh] max-h-[860px] w-full flex-col gap-0 overflow-hidden rounded-t-none rounded-b-none border-0 bg-neutral-950 p-0 text-white sm:h-[85svh] sm:max-w-md sm:rounded-t-3xl sm:rounded-b-3xl"
         >
             <!-- Progress segments -->
             <div class="flex shrink-0 items-center gap-1 px-3 pt-3">

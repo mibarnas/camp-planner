@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiSummary;
 use App\Models\Camp;
 use App\Models\CampDay;
 use App\Services\GeminiService;
+use App\Support\Markdown;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -25,7 +27,7 @@ class SummaryController extends Controller
             return response()->json(['message' => 'Tento deň zatiaľ nikto nezhodnotil.'], 422);
         }
 
-        return $this->respond($request, $this->dayText($day), "zhodnotenia dňa ({$day->date->format('j.n.')})");
+        return $this->respond($request, $day->camp, $day, $this->dayText($day), "zhodnotenia dňa ({$day->date->format('j.n.')})");
     }
 
     /**
@@ -47,13 +49,14 @@ class SummaryController extends Controller
             ->map(fn (CampDay $d) => $this->dayText($d))
             ->implode("\n\n");
 
-        return $this->respond($request, $parts, "celý tábor „{$camp->name}“");
+        return $this->respond($request, $camp, null, $parts, "celý tábor „{$camp->name}“");
     }
 
     /**
-     * Build the prompt, call Gemini with the current user's key, and return the summary.
+     * Build the prompt, call Gemini with the current user's key, store the result
+     * as this scope's summary, and return it as both markdown and HTML.
      */
-    private function respond(Request $request, string $reviewsText, string $scopeLabel): JsonResponse
+    private function respond(Request $request, Camp $camp, ?CampDay $day, string $reviewsText, string $scopeLabel): JsonResponse
     {
         $key = $request->user()->gemini_api_key;
 
@@ -86,7 +89,16 @@ class SummaryController extends Controller
             return response()->json(['message' => $e->getMessage()], 502);
         }
 
-        return response()->json(['summary' => $summary]);
+        $saved = AiSummary::updateOrCreate(
+            ['camp_id' => $camp->id, 'camp_day_id' => $day?->id],
+            ['user_id' => $request->user()->id, 'summary' => $summary],
+        );
+
+        return response()->json([
+            'summary' => $summary,
+            'summary_html' => Markdown::toHtml($summary),
+            'saved_at' => $saved->updated_at?->toIso8601String(),
+        ]);
     }
 
     /**

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { Check, Clock, Copy, Crown, Download, LayoutList, Library, Link2, Package, Pencil, Plus, Settings2, Tag, Trash2, Upload, Users, X } from '@lucide/vue';
+import { Check, Clock, Copy, Crown, Download, History, LayoutList, Library, Link2, Package, Pencil, Plus, Settings2, Tag, Trash2, Upload, Users, X } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import ActivityDetailDialog from '@/components/camp/ActivityDetailDialog.vue';
 import ActivityFormDialog from '@/components/camp/ActivityFormDialog.vue';
+import LibraryVersionsDialog from '@/components/camp/LibraryVersionsDialog.vue';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
@@ -38,7 +39,7 @@ import {
 } from '@/routes/libraries';
 import { store as storeLibraryMember, destroy as destroyLibraryMember } from '@/routes/libraries/members';
 import { store as storeShareLink, destroy as destroyShareLink } from '@/routes/libraries/shareLink';
-import type { Activity, ActivityCategory, ActivityLibrary, LibraryMember } from '@/types/camp';
+import type { Activity, ActivityCategory, ActivityLibrary, LibraryMember, PlanVersion } from '@/types/camp';
 
 const props = defineProps<{
     libraries: ActivityLibrary[];
@@ -47,6 +48,7 @@ const props = defineProps<{
     activities: Activity[];
     members: LibraryMember[];
     categories: ActivityCategory[];
+    versions: PlanVersion[];
 }>();
 
 defineOptions({
@@ -133,6 +135,7 @@ function submitNewLibrary() {
 
 // --- Library settings (rename, members, categories, delete) ---
 const settingsOpen = ref(false);
+const versionsOpen = ref(false);
 const renameForm = useForm({ name: '' });
 const memberForm = useForm({ email: '' });
 const categoryForm = useForm({ name: '', color: 'emerald' as string });
@@ -479,8 +482,8 @@ resetCategoryForm();
                 <DialogDescription>Kategórie, členovia a nastavenia databázy aktivít.</DialogDescription>
             </DialogHeader>
 
-            <div class="grid max-h-[65vh] gap-5 overflow-y-auto px-1">
-                <form v-if="selectedLibrary?.is_owner" class="flex items-end gap-2" @submit.prevent="submitRename">
+            <div class="grid gap-5 px-1">
+                <form v-if="selectedLibrary?.is_owner" class="flex flex-col gap-2 sm:flex-row sm:items-end" @submit.prevent="submitRename">
                     <div class="grid flex-1 gap-2">
                         <Label for="lib-rename">Názov</Label>
                         <Input id="lib-rename" v-model="renameForm.name" />
@@ -566,9 +569,9 @@ resetCategoryForm();
                     </template>
                 </div>
 
-                <!-- Export / import -->
+                <!-- Export / import / versions -->
                 <div class="grid gap-2 rounded-lg border p-3">
-                    <p class="text-sm font-medium">Zálohovanie (JSON)</p>
+                    <p class="text-sm font-medium">Zálohovanie</p>
                     <div class="flex flex-wrap gap-2">
                         <Button variant="outline" size="sm" @click="exportJson">
                             <Download /> Exportovať
@@ -576,10 +579,20 @@ resetCategoryForm();
                         <Button variant="outline" size="sm" :disabled="importForm.processing" @click="importInput?.click()">
                             <Upload /> Importovať
                         </Button>
+                        <Button
+                            v-if="selectedLibrary?.is_owner"
+                            variant="outline"
+                            size="sm"
+                            @click="versionsOpen = true"
+                        >
+                            <History /> Verzie
+                        </Button>
                         <input ref="importInput" type="file" accept="application/json,.json" class="hidden" @change="onImportFile" />
                     </div>
                     <InputError :message="importForm.errors.file" />
-                    <p class="text-xs text-muted-foreground">Prenes aktivity medzi databázami cez JSON súbor.</p>
+                    <p class="text-xs text-muted-foreground">
+                        Prenes aktivity medzi databázami cez JSON súbor, alebo si ulož verziu, ku ktorej sa dá vrátiť.
+                    </p>
                 </div>
 
                 <!-- Members -->
@@ -587,7 +600,7 @@ resetCategoryForm();
                     <p class="flex items-center gap-1.5 text-sm font-medium">
                         <Users class="size-4" /> Členovia ({{ members.length }})
                     </p>
-                    <form v-if="selectedLibrary?.is_owner" class="flex items-end gap-2" @submit.prevent="submitMember">
+                    <form v-if="selectedLibrary?.is_owner" class="flex flex-col gap-2 sm:flex-row sm:items-end" @submit.prevent="submitMember">
                         <div class="grid flex-1 gap-1">
                             <Input v-model="memberForm.email" type="email" placeholder="animator@farnost.sk" class="h-8" />
                             <InputError :message="memberForm.errors.email" />
@@ -626,4 +639,12 @@ resetCategoryForm();
             </DialogFooter>
         </DialogContent>
     </Dialog>
+
+    <LibraryVersionsDialog
+        v-if="selectedLibrary"
+        v-model:open="versionsOpen"
+        :library-id="selectedLibrary.id"
+        :versions="versions"
+        :is-owner="selectedLibrary.is_owner"
+    />
 </template>

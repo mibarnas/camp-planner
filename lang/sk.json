@@ -57,6 +57,7 @@
     "Version deleted.": "Verzia zmazaná.",
     "Before restoring: :name": "Pred obnovením: :name",
     "Plan restored. The previous state was saved as a backup.": "Plán obnovený. Predchádzajúci stav sa uložil ako záloha.",
+    "Library restored. The previous state was saved as a backup.": "Databáza aktivít obnovená. Predchádzajúci stav sa uložil ako záloha.",
     "This version was saved in an unsupported format.": "Táto verzia bola uložená v nepodporovanom formáte.",
     "You have joined :camp.": "Pripojil si sa do tábora :camp.",
     "The provided two factor authentication code was invalid.": "Zadaný dvojfaktorový kód je neplatný.",

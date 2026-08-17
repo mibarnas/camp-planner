@@ -96,7 +96,7 @@ function remove(slot: TimeSlot) {
             </DialogHeader>
 
             <div class="grid gap-4 sm:grid-cols-[1fr_1.1fr]">
-                <div class="grid max-h-[55vh] content-start gap-2 overflow-y-auto pr-1">
+                <div class="grid content-start gap-2 pr-1 sm:max-h-[55vh] sm:overflow-y-auto">
                     <div
                         v-for="slot in slots"
                         :key="slot.id"
@@ -143,7 +143,7 @@ function remove(slot: TimeSlot) {
                             <InputError :message="form.errors.end_time" />
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 gap-2">
+                    <div class="grid gap-2 sm:grid-cols-2">
                         <div class="grid gap-2">
                             <Label>Typ</Label>
                             <Select :model-value="form.kind" @update:model-value="form.kind = $event as 'fixed' | 'activity'">

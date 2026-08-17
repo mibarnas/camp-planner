@@ -49,6 +49,7 @@ import type {
     Activity,
     ActivityCategory,
     ActivityLibraryRef,
+    AiSummary,
     Camp,
     CampDay,
     CampInvitation,
@@ -73,6 +74,7 @@ const props = defineProps<{
     categories: ActivityCategory[];
     library: ActivityLibraryRef | null;
     planVersions: PlanVersion[];
+    aiSummaries: AiSummary[];
 }>();
 
 watchEffect(() => {
@@ -421,7 +423,12 @@ function submitDuplicate() {
     <DayDialog v-model:open="dayOpen" :day="dayForDialog" />
     <DayReviewDialog v-model:open="reviewOpen" :day="reviewDay" />
     <SlotsDialog v-model:open="slotsOpen" :camp-id="camp.id" :slots="slots" />
-    <SummaryDialog v-model:open="summaryOpen" :camp-id="camp.id" :days="localDays" />
+    <SummaryDialog
+        v-model:open="summaryOpen"
+        :camp-id="camp.id"
+        :days="localDays"
+        :summaries="aiSummaries"
+    />
     <MembersDialog
         v-model:open="membersOpen"
         :camp-id="camp.id"
@@ -445,7 +452,7 @@ function submitDuplicate() {
                 <DialogTitle>Nastavenia tábora</DialogTitle>
                 <DialogDescription>Uprav základné údaje alebo zmaž tábor.</DialogDescription>
             </DialogHeader>
-            <form class="grid max-h-[70vh] gap-4 overflow-y-auto px-1" @submit.prevent="submitSettings">
+            <form class="grid gap-4 px-1" @submit.prevent="submitSettings">
                 <div class="grid gap-2">
                     <Label for="set-name">Názov</Label>
                     <Input id="set-name" v-model="settingsForm.name" required />
@@ -458,7 +465,7 @@ function submitDuplicate() {
                     v-model:location="settingsForm.location"
                 />
 
-                <div class="grid grid-cols-3 gap-4">
+                <div class="grid gap-4 sm:grid-cols-3">
                     <div class="grid gap-2">
                         <Label for="set-year">Rok</Label>
                         <Input id="set-year" v-model="settingsForm.year" type="number" />
@@ -487,7 +494,7 @@ function submitDuplicate() {
                     <Button type="button" variant="ghost" class="text-destructive" @click="deleteCamp">
                         <Trash2 /> Zmazať tábor
                     </Button>
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 *:flex-1 sm:*:flex-initial">
                         <Button type="button" variant="outline" @click="settingsOpen = false">Zrušiť</Button>
                         <Button type="submit" :disabled="settingsForm.processing">Uložiť</Button>
                     </div>
@@ -511,7 +518,7 @@ function submitDuplicate() {
                     <Input id="dup-name" v-model="duplicateForm.name" required />
                     <InputError :message="duplicateForm.errors.name" />
                 </div>
-                <div class="grid grid-cols-3 gap-4">
+                <div class="grid gap-4 sm:grid-cols-3">
                     <div class="grid gap-2">
                         <Label for="dup-year">Rok</Label>
                         <Input id="dup-year" v-model="duplicateForm.year" type="number" />

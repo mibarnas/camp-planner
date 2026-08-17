@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Activity;
 use App\Models\ActivityLibrary;
 use App\Models\User;
+use App\Services\LibrarySnapshot;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -178,22 +178,7 @@ class ActivityLibraryController extends Controller
     {
         $this->authorize('view', $library);
 
-        $payload = [
-            'format' => 'taborplanner.library',
-            'version' => 1,
-            'name' => $library->name,
-            'categories' => $library->categories()->get()
-                ->map(fn ($c) => ['name' => $c->name, 'color' => $c->color])->values(),
-            'activities' => $library->activities()->with('category:id,name')->get()
-                ->map(fn (Activity $a) => [
-                    'name' => $a->name,
-                    'category' => $a->category?->name,
-                    'description' => $a->description,
-                    'default_duration' => $a->default_duration,
-                    'color' => $a->color,
-                    'materials' => $a->materials,
-                ])->values(),
-        ];
+        $payload = LibrarySnapshot::payload($library);
 
         $filename = Str::slug($library->name ?: 'kniznica-aktivit').'.json';
 

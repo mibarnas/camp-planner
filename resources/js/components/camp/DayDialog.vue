@@ -71,7 +71,7 @@ function submit() {
                 <DialogDescription>Detaily dňa, meniny, narodeniny a poznámky.</DialogDescription>
             </DialogHeader>
 
-            <form class="grid max-h-[60vh] gap-4 overflow-y-auto px-1" @submit.prevent="submit">
+            <form class="grid gap-4 px-1" @submit.prevent="submit">
                 <label class="flex items-center gap-3 rounded-lg border p-3">
                     <Checkbox :model-value="form.is_trip" @update:model-value="form.is_trip = $event === true" />
                     <span>
@@ -86,7 +86,7 @@ function submit() {
                     <InputError :message="form.errors.trip_name" />
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid gap-4 sm:grid-cols-2">
                     <div class="grid gap-2">
                         <Label for="day-namedays">Meniny</Label>
                         <Input id="day-namedays" v-model="form.name_days" />

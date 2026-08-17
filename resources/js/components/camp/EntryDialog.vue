@@ -86,6 +86,14 @@ const isSimple = computed(() => mode.value === 'simple');
 const search = ref('');
 const categoryFilter = ref<number | 'all'>('all');
 
+// Once an activity is picked the browsing UI collapses to a one-line summary — on a phone the
+// list would otherwise bury the time and title fields the user still has to fill in.
+const pickerExpanded = ref(true);
+const showPicker = computed(() => pickerExpanded.value || !form.activity_id);
+const selectedActivity = computed(
+    () => props.activities.find((a) => a.id === form.activity_id) ?? null,
+);
+
 const presentCategories = computed(() =>
     props.categories.filter((c) => props.activities.some((a) => a.category_id === c.id)),
 );
@@ -135,6 +143,7 @@ return;
                   : 'library';
         search.value = '';
         categoryFilter.value = 'all';
+        pickerExpanded.value = !(mode.value === 'library' && form.activity_id);
     },
 );
 
@@ -154,6 +163,8 @@ function pickActivity(activity: Activity) {
     if (!props.entry) {
 form.duration = activity.default_duration;
 }
+
+    pickerExpanded.value = false;
 }
 
 function switchMode(next: Mode) {
@@ -164,6 +175,7 @@ form.activity_id = null;
 }
 
     form.kind = next === 'simple' ? 'simple' : 'detailed';
+    pickerExpanded.value = !form.activity_id;
 }
 
 function applyPreset(preset: { label: string; duration: number }) {
@@ -255,12 +267,12 @@ savedToLibrary.value = false;
                 <DialogDescription>{{ form.start_time }}–{{ endTime }}</DialogDescription>
             </DialogHeader>
 
-            <div class="grid max-h-[65vh] gap-4 overflow-y-auto px-1">
+            <div class="grid gap-4 px-1">
                 <!-- Source tabs -->
                 <div class="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
                     <button
                         type="button"
-                        class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                        class="truncate rounded-md px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm"
                         :class="mode === 'library' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'"
                         @click="switchMode('library')"
                     >
@@ -268,19 +280,23 @@ savedToLibrary.value = false;
                     </button>
                     <button
                         type="button"
-                        class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                        class="truncate rounded-md px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm"
                         :class="mode === 'custom' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'"
                         @click="switchMode('custom')"
                     >
-                        <PenLine class="mr-1 inline size-3.5" /> Vlastná aktivita
+                        <PenLine class="mr-1 inline size-3.5" />
+                        <span class="sm:hidden">Vlastná</span>
+                        <span class="hidden sm:inline">Vlastná aktivita</span>
                     </button>
                     <button
                         type="button"
-                        class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                        class="truncate rounded-md px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm"
                         :class="mode === 'simple' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'"
                         @click="switchMode('simple')"
                     >
-                        <Coffee class="mr-1 inline size-3.5" /> Jednoduchý blok
+                        <Coffee class="mr-1 inline size-3.5" />
+                        <span class="sm:hidden">Blok</span>
+                        <span class="hidden sm:inline">Jednoduchý blok</span>
                     </button>
                 </div>
 
@@ -306,11 +322,36 @@ savedToLibrary.value = false;
 
                 <!-- Library picker -->
                 <div v-if="mode === 'library'" class="grid gap-3">
-                    <div class="relative">
+                    <!-- Picked: collapse to one line so the fields below stay in view -->
+                    <div
+                        v-if="!showPicker"
+                        class="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2.5"
+                    >
+                        <span class="size-2.5 shrink-0 rounded-full" :class="colorStyle(selectedActivity?.color ?? 'emerald').dot" />
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate text-sm font-medium">{{ selectedActivity?.name ?? form.title }}</span>
+                            <span class="flex items-center gap-2 text-[11px] text-muted-foreground">
+                                <Badge
+                                    v-if="selectedActivity && categoryById(categories, selectedActivity.category_id)"
+                                    variant="secondary"
+                                    class="px-1.5 py-0 text-[10px]"
+                                    :class="colorStyle(categoryById(categories, selectedActivity.category_id)!.color).chip"
+                                >
+                                    {{ categoryById(categories, selectedActivity.category_id)!.name }}
+                                </Badge>
+                                <span class="flex items-center gap-0.5">
+                                    <Clock class="size-3" /> {{ durationLabel(Number(form.duration) || 0) }}
+                                </span>
+                            </span>
+                        </span>
+                        <Button type="button" variant="outline" size="sm" @click="pickerExpanded = true">Zmeniť</Button>
+                    </div>
+
+                    <div v-else class="relative">
                         <Search class="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                         <Input v-model="search" placeholder="Hľadať aktivitu…" class="pl-8" />
                     </div>
-                    <div class="flex flex-wrap gap-1.5">
+                    <div v-if="showPicker" class="flex flex-wrap gap-1.5">
                         <button
                             type="button"
                             class="rounded-full border px-2.5 py-0.5 text-xs transition-colors"
@@ -332,7 +373,10 @@ savedToLibrary.value = false;
                         </button>
                     </div>
 
-                    <div v-if="filteredActivities.length" class="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                    <div
+                        v-if="showPicker && filteredActivities.length"
+                        class="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2"
+                    >
                         <button
                             v-for="a in filteredActivities"
                             :key="a.id"
@@ -369,14 +413,14 @@ savedToLibrary.value = false;
                             </span>
                         </button>
                     </div>
-                    <p v-else class="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                    <p v-else-if="showPicker" class="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
                         Žiadne aktivity. Skús iné hľadanie alebo vytvor vlastnú aktivitu.
                     </p>
                 </div>
 
                 <!-- Shared fields -->
                 <form class="grid gap-4" @submit.prevent="submit">
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid gap-4 sm:grid-cols-2">
                         <div class="grid gap-2">
                             <Label for="entry-start">Začiatok</Label>
                             <Input id="entry-start" v-model="form.start_time" type="time" step="300" required />
@@ -405,7 +449,7 @@ savedToLibrary.value = false;
                         <InputError :message="form.errors.description" />
                     </div>
 
-                    <div v-if="!isSimple" class="grid grid-cols-2 gap-4">
+                    <div v-if="!isSimple" class="grid gap-4 sm:grid-cols-2">
                         <div class="grid gap-2">
                             <Label for="entry-resp">Zodpovedný</Label>
                             <Input id="entry-resp" v-model="form.responsible" placeholder="Meno animátora" />
@@ -465,7 +509,7 @@ savedToLibrary.value = false;
                     <Trash2 /> Odstrániť
                 </Button>
                 <span v-else />
-                <div class="flex gap-2">
+                <div class="flex gap-2 *:flex-1 sm:*:flex-initial">
                     <Button type="button" variant="outline" @click="emit('update:open', false)">Zavrieť</Button>
                     <Button v-if="editable" type="button" :disabled="form.processing" @click="submit">Uložiť</Button>
                 </div>

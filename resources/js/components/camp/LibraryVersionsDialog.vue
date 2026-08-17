@@ -16,15 +16,14 @@ import {
     destroy as destroyVersion,
     restore as restoreVersion,
     store as storeVersion,
-} from '@/routes/versions';
+} from '@/routes/libraries/versions';
 import type { PlanVersion } from '@/types/camp';
 
 const props = defineProps<{
     open: boolean;
-    campId: number;
+    libraryId: number;
     versions: PlanVersion[];
     isOwner: boolean;
-    scheduleLocked: boolean;
 }>();
 
 const emit = defineEmits<{ 'update:open': [value: boolean] }>();
@@ -33,7 +32,7 @@ const today = new Date();
 const form = useForm({ name: `Verzia ${today.getDate()}.${today.getMonth() + 1}.` });
 
 function save() {
-    form.post(storeVersion(props.campId).url, {
+    form.post(storeVersion(props.libraryId).url, {
         preserveScroll: true,
         onSuccess: () => form.reset(),
     });
@@ -42,14 +41,14 @@ function save() {
 function restore(version: PlanVersion) {
     if (
         !confirm(
-            `Obnoviť verziu „${version.name}"? Aktuálny program sa najprv uloží ako záloha.`,
+            `Obnoviť verziu „${version.name}"? Aktivity sa upravia podľa uloženého stavu a tie, ktoré vo verzii nie sú, sa zmažú. Aktuálny stav sa najprv uloží ako záloha.`,
         )
     ) {
         return;
     }
 
     router.post(
-        restoreVersion({ camp: props.campId, planVersion: version.id }).url,
+        restoreVersion({ library: props.libraryId, libraryVersion: version.id }).url,
         {},
         { preserveScroll: true },
     );
@@ -60,7 +59,7 @@ function remove(version: PlanVersion) {
         return;
     }
 
-    router.delete(destroyVersion({ camp: props.campId, planVersion: version.id }).url, {
+    router.delete(destroyVersion({ library: props.libraryId, libraryVersion: version.id }).url, {
         preserveScroll: true,
     });
 }
@@ -85,31 +84,24 @@ function formatDate(iso: string | null): string {
         <DialogContent class="sm:max-w-lg">
             <DialogHeader>
                 <DialogTitle class="flex items-center gap-2">
-                    <History class="size-5" /> Verzie plánu
+                    <History class="size-5" /> Verzie databázy aktivít
                 </DialogTitle>
                 <DialogDescription>
-                    Ulož si stav programu pred väčšou zmenou a kedykoľvek sa k nemu vráť.
-                    Verzia obsahuje celý rozvrh — aktivity, časové bloky aj ich denné úpravy.
+                    Ulož si stav databázy pred väčšou zmenou a kedykoľvek sa k nemu vráť.
+                    Verzia obsahuje všetky aktivity aj ich kategórie.
                 </DialogDescription>
             </DialogHeader>
 
             <form v-if="isOwner" class="flex flex-col gap-2 sm:flex-row sm:items-end" @submit.prevent="save">
                 <div class="grid flex-1 gap-2">
-                    <Label for="version-name">Názov verzie</Label>
-                    <Input id="version-name" v-model="form.name" required />
+                    <Label for="library-version-name">Názov verzie</Label>
+                    <Input id="library-version-name" v-model="form.name" required />
                     <InputError :message="form.errors.name" />
                 </div>
                 <Button type="submit" :disabled="form.processing">
                     <Save /> Uložiť aktuálny stav
                 </Button>
             </form>
-
-            <p
-                v-if="isOwner && scheduleLocked"
-                class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-200"
-            >
-                Program je uzamknutý — pred obnovením verzie ho najprv odomkni.
-            </p>
 
             <div class="grid max-h-80 gap-2 overflow-y-auto pr-1">
                 <div

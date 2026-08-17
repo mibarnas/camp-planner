@@ -89,6 +89,14 @@ class ActivityLibrary extends Model
         return $this->hasMany(Camp::class);
     }
 
+    /**
+     * @return HasMany<LibraryVersion, $this>
+     */
+    public function libraryVersions(): HasMany
+    {
+        return $this->hasMany(LibraryVersion::class);
+    }
+
     public function hasMember(User $user): bool
     {
         return $this->members()->whereKey($user->getKey())->exists();

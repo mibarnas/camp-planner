@@ -18,15 +18,16 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-import { postJson } from '@/lib/http';
+import { HttpError, postJson } from '@/lib/http';
 import { edit as editAi } from '@/routes/ai';
 import { summary as campSummary } from '@/routes/camps';
 import { summary as daySummary } from '@/routes/days';
-import type { CampDay } from '@/types/camp';
+import type { AiSummary, CampDay } from '@/types/camp';
 
 const props = defineProps<{
     campId: number;
     days: CampDay[];
+    summaries: AiSummary[];
 }>();
 
 const open = defineModel<boolean>('open', { required: true });
@@ -34,40 +35,110 @@ const open = defineModel<boolean>('open', { required: true });
 // 'camp' or a day id as string, driving the scope <Select>.
 const scope = ref<string>('camp');
 const loading = ref(false);
-const summary = ref('');
+const summaryHtml = ref('');
+const savedAt = ref<string | null>(null);
 const error = ref('');
 const needsKey = ref(false);
+
+// Kept locally so a fresh summary shows up without a full page reload.
+const stored = ref<AiSummary[]>([]);
 
 // Only offer days that actually have reviews.
 const reviewedDays = computed(() => props.days.filter((d) => d.review_summary.reviewers > 0));
 
+const storedForScope = computed(
+    () =>
+        stored.value.find((s) =>
+            scope.value === 'camp' ? s.camp_day_id === null : s.camp_day_id === Number(scope.value),
+        ) ?? null,
+);
+
+const shownHtml = computed(() => summaryHtml.value || storedForScope.value?.summary_html || '');
+const shownSavedAt = computed(() => savedAt.value ?? storedForScope.value?.saved_at ?? null);
+
+function savedAtLabel(iso: string): string {
+    return new Date(iso).toLocaleString('sk-SK', {
+        day: 'numeric',
+        month: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+/**
+ * Summarising the whole camp only makes sense once there is a whole camp to
+ * summarise; mid-camp the useful default is the newest day that has reviews.
+ */
+function defaultScope(): string {
+    const lastReviewed = reviewedDays.value.at(-1);
+
+    if (!lastReviewed) {
+        return 'camp';
+    }
+
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const lastDay = props.days.at(-1);
+    const campFinished = !!lastDay && lastDay.date < todayIso;
+    const withEntries = props.days.filter((d) => d.entries.length > 0);
+    const allReviewed =
+        withEntries.length > 0 && withEntries.every((d) => d.review_summary.reviewers > 0);
+
+    return campFinished || allReviewed ? 'camp' : String(lastReviewed.id);
+}
+
 watch(open, (isOpen) => {
     if (isOpen) {
-        summary.value = '';
+        summaryHtml.value = '';
+        savedAt.value = null;
         error.value = '';
         needsKey.value = false;
-        scope.value = 'camp';
+        stored.value = [...props.summaries];
+        scope.value = defaultScope();
     }
+});
+
+// Switching scope drops the just-generated result so the stored one for the new scope shows.
+watch(scope, () => {
+    summaryHtml.value = '';
+    savedAt.value = null;
+    error.value = '';
+    needsKey.value = false;
 });
 
 async function generate() {
     loading.value = true;
     error.value = '';
     needsKey.value = false;
-    summary.value = '';
+    summaryHtml.value = '';
+    savedAt.value = null;
 
-    const url =
-        scope.value === 'camp'
-            ? campSummary.url(props.campId)
-            : daySummary.url(Number(scope.value));
+    const isCamp = scope.value === 'camp';
+    const url = isCamp ? campSummary.url(props.campId) : daySummary.url(Number(scope.value));
 
     try {
-        const res = await postJson<{ summary: string }>(url);
-        summary.value = res.summary;
+        const res = await postJson<{
+            summary: string;
+            summary_html: string;
+            saved_at: string | null;
+        }>(url);
+        summaryHtml.value = res.summary_html;
+        savedAt.value = res.saved_at;
+
+        const entry: AiSummary = {
+            camp_day_id: isCamp ? null : Number(scope.value),
+            summary: res.summary,
+            summary_html: res.summary_html,
+            author: null,
+            saved_at: res.saved_at,
+        };
+        stored.value = [
+            ...stored.value.filter((s) => s.camp_day_id !== entry.camp_day_id),
+            entry,
+        ];
     } catch (e) {
         error.value = e instanceof Error ? e.message : 'Nastala chyba.';
         // The backend flags a missing key so we can link to settings.
-        needsKey.value = error.value.includes('Gemini API kľúč');
+        needsKey.value = e instanceof HttpError && e.data.needs_key === true;
     } finally {
         loading.value = false;
     }
@@ -106,7 +177,7 @@ async function generate() {
                     <Button class="sm:ml-auto" :disabled="loading" @click="generate">
                         <Spinner v-if="loading" />
                         <Sparkles v-else />
-                        {{ loading ? 'Generujem…' : 'Generovať súhrn' }}
+                        {{ loading ? 'Generujem…' : shownHtml ? 'Generovať znova' : 'Generovať súhrn' }}
                     </Button>
                 </div>
 
@@ -125,11 +196,12 @@ async function generate() {
                 </div>
 
                 <!-- Result -->
-                <div
-                    v-if="summary"
-                    class="max-h-[50vh] overflow-y-auto rounded-lg border bg-muted/30 p-4 text-sm whitespace-pre-line"
-                >
-                    {{ summary }}
+                <div v-if="shownHtml" class="grid gap-1.5">
+                    <!-- eslint-disable-next-line vue/no-v-html -- sanitized server-side by App\Support\Markdown -->
+                    <div class="md-prose rounded-lg border bg-muted/30 p-4" v-html="shownHtml" />
+                    <p v-if="shownSavedAt" class="text-xs text-muted-foreground">
+                        Uložené {{ savedAtLabel(shownSavedAt) }}
+                    </p>
                 </div>
 
                 <div

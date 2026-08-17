@@ -170,3 +170,40 @@
         @apply bg-background text-foreground;
     }
 }
+
+@layer components {
+    /* Rendered markdown from the AI summaries. */
+    .md-prose {
+        @apply text-sm leading-relaxed;
+    }
+    .md-prose :is(h1, h2, h3, h4) {
+        @apply mt-3 mb-1 text-sm font-semibold first:mt-0;
+    }
+    .md-prose p {
+        @apply my-2 first:mt-0 last:mb-0;
+    }
+    .md-prose ul {
+        @apply my-2 list-disc pl-5;
+    }
+    .md-prose ol {
+        @apply my-2 list-decimal pl-5;
+    }
+    .md-prose li {
+        @apply my-0.5;
+    }
+    .md-prose strong {
+        @apply font-semibold;
+    }
+    .md-prose em {
+        @apply italic;
+    }
+    .md-prose a {
+        @apply underline underline-offset-2;
+    }
+    .md-prose blockquote {
+        @apply my-2 border-l-2 pl-3 text-muted-foreground;
+    }
+    .md-prose code {
+        @apply rounded bg-muted px-1 py-0.5 text-xs;
+    }
+}

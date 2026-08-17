@@ -69,6 +69,15 @@ export type PlanVersion = {
     created_at: string | null;
 };
 
+/** The stored AI summary for one scope: a day, or the whole camp when camp_day_id is null. */
+export type AiSummary = {
+    camp_day_id: number | null;
+    summary: string;
+    summary_html: string;
+    author: string | null;
+    saved_at: string | null;
+};
+
 export type ActivityRef = {
     id: number;
     name: string;

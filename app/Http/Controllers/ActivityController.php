@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Activity;
 use App\Models\ActivityLibrary;
+use App\Models\LibraryVersion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -51,6 +52,7 @@ class ActivityController extends Controller
         $activities = collect();
         $members = collect();
         $categories = collect();
+        $versions = collect();
 
         if ($selected) {
             $selected->load('members:id,name,email');
@@ -79,6 +81,13 @@ class ActivityController extends Controller
             ])->values();
             $categories = $selected->categories()->get()
                 ->map(fn ($c) => $c->only(['id', 'name', 'color']))->values();
+            $versions = $selected->libraryVersions()->with('user:id,name')->latest()->get()
+                ->map(fn (LibraryVersion $v) => [
+                    'id' => $v->id,
+                    'name' => $v->name,
+                    'author' => $v->user?->name,
+                    'created_at' => $v->created_at?->toIso8601String(),
+                ])->values();
         }
 
         return Inertia::render('activities/Index', [
@@ -95,6 +104,7 @@ class ActivityController extends Controller
             'activities' => $activities,
             'members' => $members,
             'categories' => $categories,
+            'versions' => $versions,
         ]);
     }
 

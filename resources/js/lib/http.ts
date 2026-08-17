@@ -4,9 +4,20 @@ function xsrfToken(): string {
     return m ? decodeURIComponent(m[1]) : '';
 }
 
+/** A non-2xx response, carrying the decoded body so callers can read its flags. */
+export class HttpError extends Error {
+    constructor(
+        message: string,
+        public readonly data: Record<string, unknown>,
+    ) {
+        super(message);
+        this.name = 'HttpError';
+    }
+}
+
 /**
  * POST JSON and get JSON back, outside Inertia (for on-demand actions like the
- * AI summary). Throws Error(message) on a non-2xx response.
+ * AI summary). Throws HttpError(message, body) on a non-2xx response.
  */
 export async function postJson<T = unknown>(url: string, body: unknown = {}): Promise<T> {
     const res = await fetch(url, {
@@ -30,7 +41,7 @@ export async function postJson<T = unknown>(url: string, body: unknown = {}): Pr
     }
 
     if (!res.ok) {
-        throw new Error((data.message as string) || 'Nastala chyba.');
+        throw new HttpError((data.message as string) || 'Nastala chyba.', data);
     }
 
     return data as T;
