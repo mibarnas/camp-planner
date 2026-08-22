@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useForm } from '@inertiajs/vue3';
-import { Check, ChevronLeft, ChevronRight, Sparkles, Star, Tent, X } from '@lucide/vue';
+import { Check, ChevronLeft, ChevronRight, MessageCircleQuestion, Sparkles, Star, Tent, X } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import StarRating from '@/components/camp/StarRating.vue';
 import { Button } from '@/components/ui/button';
@@ -9,9 +9,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { colorStyle } from '@/lib/campColors';
 import { durationLabel } from '@/lib/timeline';
 import { store as storeReview } from '@/routes/days/review';
-import type { CampDay, ProgramEntry } from '@/types/camp';
+import type { CampDay, FeedbackQuestion, ProgramEntry } from '@/types/camp';
 
-const props = defineProps<{ open: boolean; day: CampDay | null }>();
+const props = withDefaults(
+    defineProps<{ open: boolean; day: CampDay | null; questions?: FeedbackQuestion[] }>(),
+    { questions: () => [] },
+);
 const emit = defineEmits<{ 'update:open': [value: boolean] }>();
 
 type RatingRow = { rating: number; reason: string };
@@ -21,7 +24,14 @@ const form = useForm({
     notes: '',
     camp_rating: 0,
     camp_reason: '',
+    answers: {} as Record<number, string>,
 });
+
+const dayQuestions = computed(() => props.questions.filter((q) => q.scope === 'day'));
+// Whole-camp questions are asked once, at the end of the last day's review.
+const campQuestions = computed(() =>
+    props.day?.is_last ? props.questions.filter((q) => q.scope === 'camp') : [],
+);
 
 // Only real programme gets rated — nobody needs to score Raňajky out of five.
 const items = computed<ProgramEntry[]>(
@@ -32,15 +42,25 @@ const items = computed<ProgramEntry[]>(
 // only) the whole-camp screen.
 type Step =
     | { kind: 'activity'; entry: ProgramEntry }
+    | { kind: 'question'; question: FeedbackQuestion }
     | { kind: 'notes' }
     | { kind: 'camp' };
 
 const steps = computed<Step[]>(() => {
     const list: Step[] = items.value.map((entry) => ({ kind: 'activity', entry }));
+
+    for (const question of dayQuestions.value) {
+        list.push({ kind: 'question', question });
+    }
+
     list.push({ kind: 'notes' });
 
     if (props.day?.is_last) {
         list.push({ kind: 'camp' });
+
+        for (const question of campQuestions.value) {
+            list.push({ kind: 'question', question });
+        }
     }
 
     return list;
@@ -69,12 +89,19 @@ watch(
             rows[e.id] = { rating: prev?.rating ?? 0, reason: prev?.reason ?? '' };
         }
 
+        const answers: Record<number, string> = {};
+
+        for (const question of [...dayQuestions.value, ...campQuestions.value]) {
+            answers[question.id] = existing?.answers?.[question.id] ?? '';
+        }
+
         form.clearErrors();
         form.defaults({
             ratings: rows,
             notes: existing?.notes ?? '',
             camp_rating: existing?.camp_rating ?? 0,
             camp_reason: existing?.camp_reason ?? '',
+            answers,
         });
         form.reset();
         index.value = 0;
@@ -125,6 +152,11 @@ function submit() {
                     rating: r.rating,
                     reason: r.rating < 5 ? r.reason : null,
                 })),
+            // Blanks travel too — that is how an answer gets cleared.
+            answers: Object.entries(data.answers).map(([id, answer]) => ({
+                feedback_question_id: Number(id),
+                answer,
+            })),
         }))
         .post(storeReview(props.day!.id).url, {
             preserveScroll: true,
@@ -215,6 +247,26 @@ function submit() {
                         </template>
 
                         <!-- NOTES -->
+                        <!-- CAMP'S OWN QUESTION -->
+                        <template v-else-if="current?.kind === 'question'">
+                            <div class="flex flex-1 flex-col justify-center">
+                                <div class="mb-5 flex justify-center">
+                                    <div class="flex size-16 items-center justify-center rounded-2xl bg-white/10">
+                                        <MessageCircleQuestion class="size-8 text-sky-400" />
+                                    </div>
+                                </div>
+                                <h2 class="text-center text-xl font-bold">{{ current.question.text }}</h2>
+                                <p class="mt-1 mb-4 text-center text-sm text-white/60">
+                                    {{ current.question.scope === 'camp' ? 'Otázka na celý tábor' : 'Voliteľné' }}
+                                </p>
+                                <Textarea
+                                    v-model="form.answers[current.question.id]"
+                                    class="min-h-40 border-white/15 bg-white/5 text-sm text-white placeholder:text-white/40"
+                                    placeholder="Tvoja odpoveď…"
+                                />
+                            </div>
+                        </template>
+
                         <template v-else-if="current?.kind === 'notes'">
                             <div class="flex flex-1 flex-col justify-center">
                                 <div class="mb-5 flex justify-center">

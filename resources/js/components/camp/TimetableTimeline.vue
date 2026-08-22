@@ -13,6 +13,7 @@ import {
     Star,
     StickyNote,
     Trash2,
+    Trophy,
     User,
     UserCheck,
     X,
@@ -1186,6 +1187,11 @@ return;
                                     <StickyNote
                                         v-if="item.entry.notes"
                                         class="size-3 shrink-0 text-amber-600 dark:text-amber-400"
+                                    />
+                                    <Trophy
+                                        v-if="item.entry.points_mode !== 'none'"
+                                        class="size-3 shrink-0 text-amber-600 dark:text-amber-400"
+                                        title="Bodovaná aktivita"
                                     />
                                     <span
                                         v-if="item.entry.avg_rating != null"

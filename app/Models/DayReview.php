@@ -53,4 +53,12 @@ class DayReview extends Model
     {
         return $this->hasMany(ActivityRating::class);
     }
+
+    /**
+     * @return HasMany<FeedbackAnswer, $this>
+     */
+    public function answers(): HasMany
+    {
+        return $this->hasMany(FeedbackAnswer::class);
+    }
 }

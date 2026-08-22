@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Camp;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -42,6 +43,31 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'campContext' => $this->campContext($request),
+        ];
+    }
+
+    /**
+     * The camp the current page belongs to, so the sidebar can show its section.
+     * Every camp-scoped page binds {camp}, so this needs no per-controller code.
+     *
+     * @return array<string, mixed>|null
+     */
+    protected function campContext(Request $request): ?array
+    {
+        $camp = $request->route('camp');
+        $user = $request->user();
+
+        if (! $camp instanceof Camp || $user === null || ! $user->can('view', $camp)) {
+            return null;
+        }
+
+        return [
+            'id' => $camp->id,
+            'name' => $camp->name,
+            'icon' => $camp->icon,
+            'color' => $camp->color,
+            'is_owner' => $camp->owner_id === $user->id,
         ];
     }
 }

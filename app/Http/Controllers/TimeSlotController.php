@@ -6,9 +6,36 @@ use App\Models\Camp;
 use App\Models\TimeSlot;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class TimeSlotController extends Controller
 {
+    /**
+     * The camp's daily time skeleton — the template every day starts from.
+     */
+    public function index(Camp $camp): Response
+    {
+        $this->authorize('view', $camp);
+
+        return Inertia::render('camps/Blocks', [
+            'camp' => [
+                'id' => $camp->id,
+                'name' => $camp->name,
+                'schedule_locked' => $camp->isScheduleLocked(),
+            ],
+            'slots' => $camp->timeSlots()->get()->map(fn (TimeSlot $slot) => [
+                'id' => $slot->id,
+                'name' => $slot->name,
+                'start_time' => substr((string) $slot->start_time, 0, 5),
+                'end_time' => substr((string) $slot->end_time, 0, 5),
+                'kind' => $slot->kind,
+                'color' => $slot->color,
+                'position' => $slot->position,
+            ])->values(),
+        ]);
+    }
+
     public function store(Request $request, Camp $camp): RedirectResponse
     {
         $this->authorize('editSchedule', $camp);

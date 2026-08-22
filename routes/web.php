@@ -5,9 +5,16 @@ use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\ActivityLibraryController;
 use App\Http\Controllers\CampController;
 use App\Http\Controllers\CampDayController;
+use App\Http\Controllers\CampLeaderController;
 use App\Http\Controllers\CampMemberController;
 use App\Http\Controllers\DayReviewController;
+use App\Http\Controllers\EntryPointsController;
+use App\Http\Controllers\FeedbackController;
+use App\Http\Controllers\FeedbackQuestionController;
+use App\Http\Controllers\GroupController;
+use App\Http\Controllers\GroupTypeController;
 use App\Http\Controllers\InvitationController;
+use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\LibraryVersionController;
 use App\Http\Controllers\PlanVersionController;
 use App\Http\Controllers\ProgramEntryController;
@@ -51,6 +58,40 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('camps/{camp}/summary', [SummaryController::class, 'camp'])->name('camps.summary');
     Route::post('days/{day}/summary', [SummaryController::class, 'day'])->name('days.summary');
 
+    // Camp-scoped pages reached from the sidebar
+    Route::get('camps/{camp}/leaders', [CampLeaderController::class, 'index'])->name('leaders.index');
+    Route::post('camps/{camp}/leaders', [CampLeaderController::class, 'store'])->name('leaders.store');
+    // The parameter name drives the scoped lookup: {leader} -> Camp::leaders()
+    Route::put('camps/{camp}/leaders/{leader}', [CampLeaderController::class, 'update'])
+        ->scopeBindings()->name('leaders.update');
+    Route::delete('camps/{camp}/leaders/{leader}', [CampLeaderController::class, 'destroy'])
+        ->scopeBindings()->name('leaders.destroy');
+    Route::get('camps/{camp}/settings', [CampController::class, 'settings'])->name('camps.settings');
+    Route::get('camps/{camp}/blocks', [TimeSlotController::class, 'index'])->name('slots.index');
+    Route::get('camps/{camp}/feedback', [FeedbackController::class, 'index'])->name('camps.feedback');
+    Route::get('camps/{camp}/leaderboard', [LeaderboardController::class, 'index'])->name('camps.leaderboard');
+
+    // The camp's own review questions, asked inside the day review
+    Route::post('camps/{camp}/feedback-questions', [FeedbackQuestionController::class, 'store'])
+        ->name('feedbackQuestions.store');
+    Route::put('camps/{camp}/feedback-questions/{feedbackQuestion}', [FeedbackQuestionController::class, 'update'])
+        ->scopeBindings()->name('feedbackQuestions.update');
+    Route::delete('camps/{camp}/feedback-questions/{feedbackQuestion}', [FeedbackQuestionController::class, 'destroy'])
+        ->scopeBindings()->name('feedbackQuestions.destroy');
+
+    // Groups the camp is split into, and the camp's own list of group types
+    Route::get('camps/{camp}/groups', [GroupController::class, 'index'])->name('groups.index');
+    Route::post('camps/{camp}/groups', [GroupController::class, 'store'])->name('groups.store');
+    Route::put('camps/{camp}/groups/{group}', [GroupController::class, 'update'])
+        ->scopeBindings()->name('groups.update');
+    Route::delete('camps/{camp}/groups/{group}', [GroupController::class, 'destroy'])
+        ->scopeBindings()->name('groups.destroy');
+    Route::post('camps/{camp}/group-types', [GroupTypeController::class, 'store'])->name('groupTypes.store');
+    Route::put('camps/{camp}/group-types/{groupType}', [GroupTypeController::class, 'update'])
+        ->scopeBindings()->name('groupTypes.update');
+    Route::delete('camps/{camp}/group-types/{groupType}', [GroupTypeController::class, 'destroy'])
+        ->scopeBindings()->name('groupTypes.destroy');
+
     // Camp days (derived from the date range — only their meta is editable)
     Route::put('days/{day}', [CampDayController::class, 'update'])->name('days.update');
     Route::post('days/{day}/review', [DayReviewController::class, 'store'])->name('days.review.store');
@@ -79,6 +120,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('program-entries/{entry}', [ProgramEntryController::class, 'update'])->name('entries.update');
     Route::put('program-entries/{entry}/status', [ProgramEntryController::class, 'setStatus'])->name('entries.setStatus');
     Route::delete('program-entries/{entry}', [ProgramEntryController::class, 'destroy'])->name('entries.destroy');
+    // Recording results is not editing the plan, so this survives a frozen schedule.
+    Route::put('program-entries/{entry}/points', [EntryPointsController::class, 'update'])->name('entries.points.update');
 
     // Members & invitations
     Route::post('camps/{camp}/members', [CampMemberController::class, 'store'])->name('members.store');

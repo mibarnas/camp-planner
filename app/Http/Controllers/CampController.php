@@ -4,16 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Models\Activity;
 use App\Models\ActivityLibrary;
-use App\Models\AiSummary;
 use App\Models\Camp;
 use App\Models\CampDay;
+use App\Models\CampLeader;
+use App\Models\EntryGroupPoint;
+use App\Models\FeedbackQuestion;
 use App\Models\PlanVersion;
 use App\Models\ProgramEntry;
 use App\Models\TimeSlot;
 use App\Models\TimeSlotOverride;
 use App\Models\User;
-use App\Support\Markdown;
 use App\Support\NameDays;
+use App\Support\NameMatcher;
+use App\Support\Weekdays;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -190,11 +193,11 @@ class CampController extends Controller
             'timeSlots',
             'days.entries' => fn ($q) => $q->orderBy('start_time'),
             'days.entries.activity:id,name,color',
+            'days.entries.groupPoints',
             'days.slotOverrides',
             'days.reviews.ratings',
+            'days.reviews.answers',
             'days.reviews.user:id,name',
-            'members:id,name,email',
-            'invitations' => fn ($q) => $q->whereNull('accepted_at'),
         ]);
 
         $userId = Auth::id();
@@ -230,6 +233,11 @@ class CampController extends Controller
                     'materials' => $entry->materials,
                     'notes' => $entry->notes,
                     'status' => $entry->status,
+                    'points_mode' => $entry->points_mode,
+                    'points' => $entry->groupPoints->map(fn (EntryGroupPoint $p) => [
+                        'camp_group_id' => $p->camp_group_id,
+                        'value' => $p->value,
+                    ])->values()->all(),
                     'avg_rating' => $rs && $rs->count() ? round($rs->avg('rating'), 1) : null,
                     'rating_count' => $rs?->count() ?? 0,
                 ];
@@ -243,23 +251,26 @@ class CampController extends Controller
                 foreach ($mine->ratings as $r) {
                     $myRatings[$r->program_entry_id] = ['rating' => $r->rating, 'reason' => $r->reason];
                 }
+                $myAnswers = [];
+                foreach ($mine->answers as $a) {
+                    $myAnswers[$a->feedback_question_id] = $a->answer;
+                }
                 $myReview = [
                     'notes' => $mine->notes,
                     'camp_rating' => $mine->camp_rating,
                     'camp_reason' => $mine->camp_reason,
                     'ratings' => $myRatings,
+                    'answers' => $myAnswers,
                 ];
             }
 
             $allRatings = $day->reviews->flatMap->ratings;
             $campRatings = $day->reviews->pluck('camp_rating')->filter();
 
-            $weekdays = [1 => 'pondelok', 2 => 'utorok', 3 => 'streda', 4 => 'štvrtok', 5 => 'piatok', 6 => 'sobota', 7 => 'nedeľa'];
-
             return [
                 'id' => $day->id,
                 'date' => $day->date->toDateString(),
-                'weekday' => $weekdays[$day->date->dayOfWeekIso],
+                'weekday' => Weekdays::sk($day->date->dayOfWeekIso),
                 'label' => $day->date->format('j.n.'),
                 'is_trip' => $day->is_trip,
                 'trip_name' => $day->trip_name,
@@ -308,30 +319,29 @@ class CampController extends Controller
                     'author' => $v->user?->name,
                     'created_at' => $v->created_at?->toIso8601String(),
                 ])->values(),
-            'aiSummaries' => $camp->aiSummaries()->with('user:id,name')->get()
-                ->map(fn (AiSummary $s) => [
-                    'camp_day_id' => $s->camp_day_id,
-                    'summary' => $s->summary,
-                    'summary_html' => Markdown::toHtml($s->summary),
-                    'author' => $s->user?->name,
-                    'saved_at' => $s->updated_at?->toIso8601String(),
-                ])->values(),
-            'members' => $camp->members->map(fn (User $m) => [
-                'id' => $m->id,
-                'name' => $m->name,
-                'email' => $m->email,
-                'role' => $m->getAttribute('pivot')?->getAttribute('role'),
-            ])->values(),
-            'invitations' => $camp->invitations->whereNotNull('email')->map(fn ($i) => [
-                'id' => $i->id,
-                'email' => $i->email,
-                'role' => $i->role,
-                'link' => route('invitations.show', $i->token),
-            ])->values(),
-            'shareLink' => ($share = $camp->invitations->firstWhere('email', null)) ? [
-                'id' => $share->id,
-                'link' => route('invitations.show', $share->token),
-            ] : null,
+            'membersCount' => $camp->members()->count(),
+            // Which competing groups this user leads — used to nudge them when
+            // their group's result for a scoring activity is still missing.
+            'myGroupIds' => $camp->groups()
+                ->where('competes', true)
+                ->whereHas('leaders', fn ($q) => $q->where('user_id', $userId))
+                ->pluck('id')->values()->all(),
+            // The camp's own review questions, asked inside the review wizard.
+            'feedbackQuestions' => $camp->feedbackQuestions()->active()->get()
+                ->map(fn (FeedbackQuestion $q) => [
+                    'id' => $q->id,
+                    'scope' => $q->scope,
+                    'text' => $q->text,
+                    'position' => $q->position,
+                ])->values()->all(),
+            // Typing a responsible person stays free text; the planner only uses
+            // this to show which names it recognises.
+            'leaders' => $camp->leaders()->get()->map(fn (CampLeader $leader) => [
+                'id' => $leader->id,
+                'name' => $leader->name,
+                'user_id' => $leader->user_id,
+                'color' => $leader->color,
+            ])->values()->all(),
             'activities' => ($camp->activityLibrary?->activities()->get() ?? collect())
                 ->map(fn (Activity $a) => [
                     'id' => $a->id,
@@ -345,6 +355,31 @@ class CampController extends Controller
             'categories' => ($camp->activityLibrary?->categories()->get() ?? collect())
                 ->map(fn ($c) => $c->only(['id', 'name', 'color']))->values(),
             'library' => $camp->activityLibrary?->only(['id', 'name']),
+        ]);
+    }
+
+    /**
+     * The camp's own settings page (name, appearance, dates, deletion).
+     */
+    public function settings(Camp $camp): Response
+    {
+        $this->authorize('update', $camp);
+
+        return Inertia::render('camps/Settings', [
+            'camp' => [
+                'id' => $camp->id,
+                'name' => $camp->name,
+                'icon' => $camp->icon,
+                'color' => $camp->color,
+                'year' => $camp->year,
+                'description' => $camp->description,
+                'location' => $camp->location,
+                'start_date' => $camp->start_date->toDateString(),
+                'end_date' => $camp->end_date->toDateString(),
+                'owner_id' => $camp->owner_id,
+                'is_owner' => $camp->owner_id === Auth::id(),
+                'schedule_locked' => $camp->isScheduleLocked(),
+            ],
         ]);
     }
 
@@ -421,6 +456,54 @@ class CampController extends Controller
             ]);
             $new->addMember($request->user(), 'owner');
 
+            // Carry the leader list over as names. Rows for other people's
+            // accounts arrive unlinked — they aren't members of the new camp
+            // yet — and re-link by name when they join.
+            $carried = $new->leaders()->get();
+            $newLeaderIdByOld = [];
+            foreach ($camp->leaders()->get() as $leader) {
+                $match = $carried->first(
+                    fn (CampLeader $l) => NameMatcher::matches($l->name, $leader->name),
+                );
+
+                if (! $match) {
+                    $match = $new->leaders()->create(['name' => $leader->name, 'color' => $leader->color]);
+                    $carried->push($match);
+                }
+
+                $newLeaderIdByOld[$leader->id] = $match->id;
+            }
+
+            // Group structure carries over; points and standings do not.
+            $newTypeIdByOld = [];
+            foreach ($camp->groupTypes()->get() as $type) {
+                $newTypeIdByOld[$type->id] = $new->groupTypes()->create(
+                    $type->only(['name', 'color', 'position']),
+                )->id;
+            }
+
+            foreach ($camp->groups()->with('leaders:id')->get() as $group) {
+                $copy = $new->groups()->create([
+                    'group_type_id' => $newTypeIdByOld[$group->group_type_id] ?? null,
+                    'name' => $group->name,
+                    'competes' => $group->competes,
+                    'color' => $group->color,
+                    'position' => $group->position,
+                ]);
+
+                $copy->leaders()->sync(
+                    $group->leaders
+                        ->map(fn (CampLeader $l) => $newLeaderIdByOld[$l->id] ?? null)
+                        ->filter()
+                        ->all(),
+                );
+            }
+
+            // The questions carry over; the answers stay with the old camp.
+            foreach ($camp->feedbackQuestions()->active()->get() as $question) {
+                $new->feedbackQuestions()->create($question->only(['scope', 'text', 'position']));
+            }
+
             // Copy the time-block guides, remembering which new slot each old
             // one became so per-day overrides can point at the right block.
             $newSlotIdByOld = [];
@@ -457,6 +540,7 @@ class CampController extends Controller
                             'responsible' => $entry->responsible,
                             'materials' => $entry->materials,
                             'notes' => $entry->notes,
+                            'points_mode' => $entry->points_mode,
                         ]);
                     }
 

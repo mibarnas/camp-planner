@@ -21,7 +21,7 @@ class SummaryController extends Controller
     {
         $this->authorize('update', $day->camp);
 
-        $day->load(['camp', 'reviews.user:id,name', 'reviews.ratings.entry:id,title,activity_id', 'reviews.ratings.entry.activity:id,name']);
+        $day->load(['camp', 'reviews.user:id,name', 'reviews.answers.question:id,text,scope', 'reviews.ratings.entry:id,title,activity_id', 'reviews.ratings.entry.activity:id,name']);
 
         if ($day->reviews->isEmpty()) {
             return response()->json(['message' => 'Tento deň zatiaľ nikto nezhodnotil.'], 422);
@@ -37,7 +37,7 @@ class SummaryController extends Controller
     {
         $this->authorize('update', $camp);
 
-        $camp->load(['days.reviews.user:id,name', 'days.reviews.ratings.entry:id,title,activity_id', 'days.reviews.ratings.entry.activity:id,name']);
+        $camp->load(['days.reviews.user:id,name', 'days.reviews.answers.question:id,text,scope', 'days.reviews.ratings.entry:id,title,activity_id', 'days.reviews.ratings.entry.activity:id,name']);
 
         $hasReviews = $camp->days->contains(fn (CampDay $d) => $d->reviews->isNotEmpty());
         if (! $hasReviews) {
@@ -75,6 +75,7 @@ class SummaryController extends Controller
             Zhrň:
             • čo fungovalo dobre (najlepšie hodnotené aktivity),
             • čo treba zlepšiť (najnižšie hodnotené a spomínané dôvody),
+            • odpovede na vlastné otázky tábora (ak sú v dátach) zapracuj do súhrnu,
             • celkový dojem a odporúčania do budúcna.
 
             Používaj krátke odseky alebo odrážky. Nevymýšľaj si nič, čo nie je v dátach.
@@ -123,6 +124,9 @@ class SummaryController extends Controller
             if ($review->camp_rating) {
                 $reason = $review->camp_reason ? " (dôvod: {$review->camp_reason})" : '';
                 $lines[] = "    Celkové hodnotenie tábora: {$review->camp_rating}/5{$reason}";
+            }
+            foreach ($review->answers as $answer) {
+                $lines[] = "    Otázka „{$answer->question->text}“: {$answer->answer}";
             }
         }
 

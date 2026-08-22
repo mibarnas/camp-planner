@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\NameMatcher;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -83,6 +84,38 @@ class Camp extends Model
     }
 
     /**
+     * @return HasMany<CampLeader, $this>
+     */
+    public function leaders(): HasMany
+    {
+        return $this->hasMany(CampLeader::class)->orderBy('name');
+    }
+
+    /**
+     * @return HasMany<CampGroup, $this>
+     */
+    public function groups(): HasMany
+    {
+        return $this->hasMany(CampGroup::class)->orderBy('position')->orderBy('name');
+    }
+
+    /**
+     * @return HasMany<GroupType, $this>
+     */
+    public function groupTypes(): HasMany
+    {
+        return $this->hasMany(GroupType::class)->orderBy('position')->orderBy('name');
+    }
+
+    /**
+     * @return HasMany<FeedbackQuestion, $this>
+     */
+    public function feedbackQuestions(): HasMany
+    {
+        return $this->hasMany(FeedbackQuestion::class)->orderBy('position')->orderBy('id');
+    }
+
+    /**
      * @return HasMany<CampDay, $this>
      */
     public function days(): HasMany
@@ -147,5 +180,29 @@ class Camp extends Model
         }
 
         $this->activityLibrary?->addMember($user);
+        $this->linkLeader($user);
+    }
+
+    /**
+     * Give the user their leader row. Someone already listed by name — because
+     * the camp referenced them before they had an account — keeps that row (and
+     * everything pointing at it) instead of gaining a second one.
+     */
+    protected function linkLeader(User $user): void
+    {
+        if ($this->leaders()->where('user_id', $user->id)->exists()) {
+            return;
+        }
+
+        $named = $this->leaders()->whereNull('user_id')->get()
+            ->first(fn (CampLeader $leader) => NameMatcher::matches($leader->name, $user->name));
+
+        if ($named) {
+            $named->update(['user_id' => $user->id]);
+
+            return;
+        }
+
+        $this->leaders()->create(['user_id' => $user->id, 'name' => $user->name]);
     }
 }

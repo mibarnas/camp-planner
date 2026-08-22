@@ -25,6 +25,7 @@ class ProgramEntryController extends Controller
             'title' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'responsible' => ['nullable', 'string', 'max:255'],
+            'points_mode' => ['sometimes', 'in:none,raw,placement'],
             'materials' => ['nullable', 'string'],
             'notes' => ['nullable', 'string'],
         ]);
@@ -58,6 +59,7 @@ class ProgramEntryController extends Controller
             'title' => $data['title'] ?? null,
             'description' => $data['description'] ?? null,
             'responsible' => $data['responsible'] ?? null,
+            'points_mode' => $data['points_mode'] ?? ProgramEntry::POINTS_NONE,
             'materials' => $data['materials'] ?? null,
             'notes' => $data['notes'] ?? null,
         ]);
@@ -80,6 +82,7 @@ class ProgramEntryController extends Controller
             'title' => ['sometimes', 'nullable', 'string', 'max:255'],
             'description' => ['sometimes', 'nullable', 'string'],
             'responsible' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'points_mode' => ['sometimes', 'in:none,raw,placement'],
             'materials' => ['sometimes', 'nullable', 'string'],
             'notes' => ['sometimes', 'nullable', 'string'],
             'status' => ['sometimes', 'in:todo,none,done'],

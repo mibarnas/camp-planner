@@ -32,6 +32,15 @@ export type Camp = {
     schedule_locked: boolean;
 };
 
+/** The camp the current page belongs to — shared globally so the sidebar can show its section. */
+export type CampContext = {
+    id: number;
+    name: string;
+    icon: string;
+    color: string;
+    is_owner: boolean;
+};
+
 export type TimeSlot = {
     id: number;
     name: string;
@@ -78,6 +87,45 @@ export type AiSummary = {
     saved_at: string | null;
 };
 
+/** The minimum a day needs to be offered as an AI-summary scope. */
+export type SummaryDay = {
+    id: number;
+    date: string;
+    weekday: string;
+    label: string;
+    entries_count: number;
+    reviewers: number;
+};
+
+export type FeedbackRating = {
+    entry_id: number;
+    entry_title: string;
+    rating: number;
+    reason: string | null;
+};
+
+export type FeedbackAnswer = {
+    question_id: number;
+    answer: string;
+};
+
+/** One leader's whole review of one day, as shown on the Feedback page. */
+export type LeaderFeedback = {
+    id: number;
+    user_name: string;
+    notes: string | null;
+    camp_rating: number | null;
+    camp_reason: string | null;
+    ratings: FeedbackRating[];
+    answers: FeedbackAnswer[];
+};
+
+export type FeedbackDay = SummaryDay & {
+    is_last: boolean;
+    avg: number | null;
+    reviews: LeaderFeedback[];
+};
+
 export type ActivityRef = {
     id: number;
     name: string;
@@ -96,6 +144,17 @@ export type EntryStatus = 'todo' | 'none' | 'done';
  */
 export type EntryKind = 'detailed' | 'simple';
 
+/**
+ * How an activity scores groups: 'raw' counts the entered numbers directly,
+ * 'placement' turns the ranking of those numbers into points.
+ */
+export type PointsMode = 'none' | 'raw' | 'placement';
+
+export type EntryGroupPoint = {
+    camp_group_id: number;
+    value: number;
+};
+
 export type ProgramEntry = {
     id: number;
     activity_id: number | null;
@@ -109,17 +168,32 @@ export type ProgramEntry = {
     materials: string | null;
     notes: string | null;
     status: EntryStatus;
+    points_mode: PointsMode;
+    points: EntryGroupPoint[];
     avg_rating: number | null;
     rating_count: number;
 };
 
 export type EntryRating = { rating: number; reason: string | null };
 
+/**
+ * A camp's own review question. 'day' questions are asked in every day's
+ * review, 'camp' questions once as part of the last day's.
+ */
+export type FeedbackQuestion = {
+    id: number;
+    scope: 'day' | 'camp';
+    text: string;
+    position: number;
+    archived?: boolean;
+};
+
 export type DayReviewData = {
     notes: string | null;
     camp_rating: number | null;
     camp_reason: string | null;
     ratings: Record<number, EntryRating>;
+    answers: Record<number, string>;
 };
 
 export type ReviewSummary = {
@@ -144,6 +218,43 @@ export type CampDay = {
     is_last: boolean;
     my_review: DayReviewData | null;
     review_summary: ReviewSummary;
+};
+
+/** A competing group as the leaderboard shows it. */
+export type LeaderboardGroup = {
+    id: number;
+    name: string;
+    color: string | null;
+    type_name: string | null;
+    leaders: string[];
+};
+
+export type Standing = {
+    group_id: number;
+    total: number;
+};
+
+/** One group's result in one scoring activity; `awarded` is derived server-side. */
+export type PointRow = {
+    group_id: number;
+    value: number | null;
+    awarded: number | null;
+};
+
+export type ScoringEntry = {
+    id: number;
+    title: string;
+    start_time: string;
+    points_mode: PointsMode;
+    rows: PointRow[];
+};
+
+export type ScoringDay = {
+    id: number;
+    date: string;
+    weekday: string;
+    label: string;
+    entries: ScoringEntry[];
 };
 
 export type ActivityCategory = {
@@ -171,6 +282,36 @@ export type CampMember = {
     name: string;
     email: string;
     role: CampRole;
+};
+
+/**
+ * A leader of the camp. `user_id` is null for someone without an account —
+ * still referenceable as the person responsible for an activity.
+ */
+export type CampLeader = {
+    id: number;
+    name: string;
+    user_id: number | null;
+    color: string | null;
+    email?: string | null;
+};
+
+/** A camp-defined kind of group: "Detské skupiny", "Fotografi", … */
+export type GroupType = {
+    id: number;
+    name: string;
+    color: string | null;
+    position: number;
+};
+
+export type CampGroup = {
+    id: number;
+    name: string;
+    group_type_id: number | null;
+    competes: boolean;
+    color: string | null;
+    position: number;
+    leader_ids: number[];
 };
 
 export type CampInvitation = {

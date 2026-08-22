@@ -1,4 +1,5 @@
 import type { Auth } from '@/types/auth';
+import type { CampContext } from '@/types/camp';
 
 // Extend ImportMeta interface for Vite...
 declare module 'vite/client' {
@@ -19,6 +20,7 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             sidebarOpen: boolean;
+            campContext: CampContext | null;
             [key: string]: unknown;
         };
     }

@@ -70,6 +70,10 @@ class CampMemberController extends Controller
 
         $camp->members()->detach($user->id);
 
+        // Their leader row stays behind as a plain name, so groups and anything
+        // that named them keep working after the account is gone.
+        $camp->leaders()->where('user_id', $user->id)->update(['user_id' => null]);
+
         return back()->with('toast', ['type' => 'success', 'message' => __('Member removed.')]);
     }
 

@@ -2,6 +2,7 @@
 import { Link } from '@inertiajs/vue3';
 import { ListChecks, Tent } from '@lucide/vue';
 import AppLogo from '@/components/AppLogo.vue';
+import NavCamp from '@/components/NavCamp.vue';
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
 import {
@@ -45,8 +46,9 @@ const mainNavItems: NavItem[] = [
             </SidebarMenu>
         </SidebarHeader>
 
-        <SidebarContent>
+        <SidebarContent class="gap-4">
             <NavMain :items="mainNavItems" />
+            <NavCamp />
         </SidebarContent>
 
         <SidebarFooter>

@@ -65,5 +65,22 @@
     "The :attribute must be at least :length characters and contain at least one uppercase character.": ":attribute musí mať aspoň :length znakov a obsahovať aspoň jedno veľké písmeno.",
     "The :attribute must be at least :length characters and contain at least one number.": ":attribute musí mať aspoň :length znakov a obsahovať aspoň jedno číslo.",
     "The :attribute must be at least :length characters and contain at least one special character.": ":attribute musí mať aspoň :length znakov a obsahovať aspoň jeden špeciálny znak.",
-    "The :attribute must be at least :length characters.": ":attribute musí mať aspoň :length znakov."
+    "The :attribute must be at least :length characters.": ":attribute musí mať aspoň :length znakov.",
+    "Leader added.": "Vedúci pridaný.",
+    "Leader updated.": "Vedúci upravený.",
+    "Leader removed.": "Vedúci odstránený.",
+    "A leader with an account is removed by removing their access.": "Vedúceho s účtom odstrániš odobratím prístupu.",
+    "Group added.": "Skupina pridaná.",
+    "Group updated.": "Skupina upravená.",
+    "Group removed.": "Skupina odstránená.",
+    "Group type added.": "Typ skupiny pridaný.",
+    "Group type updated.": "Typ skupiny upravený.",
+    "Group type removed.": "Typ skupiny odstránený.",
+    "Question added.": "Otázka pridaná.",
+    "Question updated.": "Otázka upravená.",
+    "Question removed.": "Otázka odstránená.",
+    "Question archived — its answers are kept.": "Otázka skrytá — odpovede ostávajú.",
+    "A question that has answers cannot change its scope.": "Otázke, na ktorú už niekto odpovedal, sa nedá zmeniť rozsah.",
+    "Points saved.": "Body uložené.",
+    "This activity is not scored.": "Táto aktivita sa neboduje."
 }

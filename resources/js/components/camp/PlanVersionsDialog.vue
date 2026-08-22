@@ -42,7 +42,8 @@ function save() {
 function restore(version: PlanVersion) {
     if (
         !confirm(
-            `Obnoviť verziu „${version.name}"? Aktuálny program sa najprv uloží ako záloha.`,
+            `Obnoviť verziu „${version.name}"? Aktuálny program sa najprv uloží ako záloha. ` +
+                'Zmažú sa aj hodnotenia aktivít a zapísané body.',
         )
     ) {
         return;

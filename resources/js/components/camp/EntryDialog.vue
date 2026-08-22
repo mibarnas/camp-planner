@@ -15,8 +15,10 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { categoryById, colorStyle } from '@/lib/campColors';
+import { matchLeader } from '@/lib/leaders';
 import { durationLabel, minToTime, timeToMin } from '@/lib/timeline';
 import { store as storeActivity } from '@/routes/activities';
 import { destroy as destroyEntry, store as storeEntry, update as updateEntry } from '@/routes/entries';
@@ -25,8 +27,10 @@ import type {
     ActivityCategory,
     ActivityLibraryRef,
     CampDay,
+    CampLeader,
     EntryKind,
     EntryStatus,
+    PointsMode,
     ProgramEntry,
 } from '@/types/camp';
 
@@ -38,11 +42,22 @@ const props = withDefaults(
         activities: Activity[];
         categories: ActivityCategory[];
         library: ActivityLibraryRef | null;
+        leaders?: CampLeader[];
         startMin?: number;
         editable?: boolean;
     }>(),
-    { editable: true },
+    { editable: true, leaders: () => [] },
 );
+
+const POINTS_OPTIONS: { value: PointsMode; label: string; hint: string }[] = [
+    { value: 'none', label: 'Bez bodovania', hint: '' },
+    { value: 'raw', label: 'Priame body', hint: 'Zapísané čísla sú priamo body.' },
+    {
+        value: 'placement',
+        label: 'Podľa poradia',
+        hint: 'Zapísané čísla určia poradie — najlepšia skupina získa najviac bodov.',
+    },
+];
 
 const STATUS_OPTIONS: { value: EntryStatus; label: string }[] = [
     { value: 'todo', label: 'Treba doriešiť' },
@@ -77,7 +92,15 @@ const form = useForm({
     notes: '',
     status: 'none' as EntryStatus,
     kind: 'detailed' as EntryKind,
+    points_mode: 'none' as PointsMode,
 });
+
+// Typing a name stays free — this only tells the user when what they typed
+// names someone the camp already knows.
+const matchedLeader = computed(() => matchLeader(form.responsible, props.leaders));
+const pointsHint = computed(
+    () => POINTS_OPTIONS.find((o) => o.value === form.points_mode)?.hint ?? '',
+);
 
 // --- Picker state ---
 type Mode = 'library' | 'custom' | 'simple';
@@ -133,6 +156,7 @@ return;
             notes: e?.notes ?? '',
             status: e?.status ?? 'none',
             kind: e?.kind ?? 'detailed',
+            points_mode: e?.points_mode ?? 'none',
         });
         form.reset();
         mode.value =
@@ -452,7 +476,26 @@ savedToLibrary.value = false;
                     <div v-if="!isSimple" class="grid gap-4 sm:grid-cols-2">
                         <div class="grid gap-2">
                             <Label for="entry-resp">Zodpovedný</Label>
-                            <Input id="entry-resp" v-model="form.responsible" placeholder="Meno animátora" />
+                            <div class="relative">
+                                <Input
+                                    id="entry-resp"
+                                    v-model="form.responsible"
+                                    list="entry-resp-leaders"
+                                    placeholder="Meno animátora"
+                                    :class="matchedLeader ? 'pr-8' : ''"
+                                />
+                                <span v-if="matchedLeader" class="absolute inset-y-0 right-2 flex items-center" title="Vedúci tábora">
+                                    <span
+                                        v-if="matchedLeader.color"
+                                        class="mr-1 size-2 rounded-full"
+                                        :class="colorStyle(matchedLeader.color).dot"
+                                    />
+                                    <Check class="size-4 text-emerald-600 dark:text-emerald-400" />
+                                </span>
+                            </div>
+                            <datalist id="entry-resp-leaders">
+                                <option v-for="leader in leaders" :key="leader.id" :value="leader.name" />
+                            </datalist>
                             <InputError :message="form.errors.responsible" />
                         </div>
                         <div class="grid gap-2">
@@ -460,6 +503,20 @@ savedToLibrary.value = false;
                             <Input id="entry-mat" v-model="form.materials" />
                             <InputError :message="form.errors.materials" />
                         </div>
+                    </div>
+
+                    <div v-if="!isSimple" class="grid gap-2">
+                        <Label>Bodovanie skupín</Label>
+                        <Select :model-value="form.points_mode" @update:model-value="form.points_mode = $event as PointsMode">
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem v-for="option in POINTS_OPTIONS" :key="option.value" :value="option.value">
+                                    {{ option.label }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p v-if="pointsHint" class="text-xs text-muted-foreground">{{ pointsHint }}</p>
+                        <InputError :message="form.errors.points_mode" />
                     </div>
 
                     <div v-if="entry" class="grid gap-2">

@@ -106,19 +106,34 @@ it('asks for a key instead of calling the API when the user has none', function 
     expect(AiSummary::count())->toBe(0);
 });
 
-it('sends stored summaries to the camp page as rendered html', function () {
+it('sends stored summaries to the feedback page as rendered html', function () {
     [$camp, $owner] = makeReviewedCamp('- **Ranná hra** bola najlepšia');
 
     $this->actingAs($owner)->postJson("/camps/{$camp->id}/summary")->assertOk();
 
     $this->actingAs($owner)
-        ->get("/camps/{$camp->id}")
+        ->get("/camps/{$camp->id}/feedback")
         ->assertInertia(fn ($page) => $page
             ->has('aiSummaries', 1)
             ->where('aiSummaries.0.camp_day_id', null)
             ->where('aiSummaries.0.author', $owner->name)
             ->has('aiSummaries.0.summary_html')
         );
+});
+
+it('feeds the answers to the camp\'s own questions into the prompt', function () {
+    [$camp, $owner] = makeReviewedCamp();
+    $question = $camp->feedbackQuestions()->create(['scope' => 'day', 'text' => 'Čo by si zmenil?']);
+    $review = $camp->days->first()->reviews()->firstOrFail();
+    $review->answers()->create(['feedback_question_id' => $question->id, 'answer' => 'Viac vody.']);
+
+    $this->actingAs($owner)->postJson("/camps/{$camp->id}/summary")->assertOk();
+
+    Http::assertSent(function ($request) {
+        $prompt = $request['contents'][0]['parts'][0]['text'];
+
+        return str_contains($prompt, 'Čo by si zmenil?') && str_contains($prompt, 'Viac vody.');
+    });
 });
 
 it('refuses a summary for a camp nobody has reviewed', function () {

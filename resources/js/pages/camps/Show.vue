@@ -1,29 +1,21 @@
 <script setup lang="ts">
-import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, setLayoutProps, useForm } from '@inertiajs/vue3';
 import {
     CalendarHeart,
-    Columns3,
     Copy,
     History,
     Lock,
     LockOpen,
     MapPin,
     Pencil,
-    Settings,
-    Sparkles,
     Star,
-    Trash2,
-    Users,
+    Trophy,
 } from '@lucide/vue';
 import { computed, ref, watch, watchEffect } from 'vue';
-import CampAppearanceFields from '@/components/camp/CampAppearanceFields.vue';
 import DayDialog from '@/components/camp/DayDialog.vue';
 import DayReviewDialog from '@/components/camp/DayReviewDialog.vue';
 import EntryDialog from '@/components/camp/EntryDialog.vue';
-import MembersDialog from '@/components/camp/MembersDialog.vue';
 import PlanVersionsDialog from '@/components/camp/PlanVersionsDialog.vue';
-import SlotsDialog from '@/components/camp/SlotsDialog.vue';
-import SummaryDialog from '@/components/camp/SummaryDialog.vue';
 import TimetableTimeline from '@/components/camp/TimetableTimeline.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
@@ -38,27 +30,24 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { colorStyle } from '@/lib/campColors';
 import { campIcon } from '@/lib/campIcons';
 import { index as campsIndex } from '@/routes/camps';
-import { destroy as destroyCamp, duplicate as duplicateCamp, fillNameDays, lock as lockCamp, unlock as unlockCamp, update as updateCamp } from '@/routes/camps';
+import { duplicate as duplicateCamp, fillNameDays, leaderboard, lock as lockCamp, unlock as unlockCamp } from '@/routes/camps';
 import { bulkDestroy, bulkUpdate, setStatus as setEntryStatus } from '@/routes/entries';
 import { destroy as destroyOverride, upsert as upsertOverride } from '@/routes/slotOverrides';
 import type {
     Activity,
     ActivityCategory,
     ActivityLibraryRef,
-    AiSummary,
     Camp,
     CampDay,
-    CampInvitation,
-    CampMember,
+    CampLeader,
     EffectiveSlot,
     EntryStatus,
+    FeedbackQuestion,
     PlanVersion,
     ProgramEntry,
-    ShareLink,
     SlotOverridePatch,
     TimeSlot,
 } from '@/types/camp';
@@ -67,14 +56,14 @@ const props = defineProps<{
     camp: Camp;
     slots: TimeSlot[];
     days: CampDay[];
-    members: CampMember[];
-    invitations: CampInvitation[];
-    shareLink: ShareLink | null;
+    membersCount: number;
+    leaders: CampLeader[];
+    feedbackQuestions: FeedbackQuestion[];
+    myGroupIds: number[];
     activities: Activity[];
     categories: ActivityCategory[];
     library: ActivityLibraryRef | null;
     planVersions: PlanVersion[];
-    aiSummaries: AiSummary[];
 }>();
 
 watchEffect(() => {
@@ -201,56 +190,40 @@ function capitalize(v: string): string {
     return v.charAt(0).toUpperCase() + v.slice(1);
 }
 
+// Nudge a group's leaders when a scoring activity that already happened is
+// still missing their group's result.
+const entryNeedingPoints = computed(() => {
+    if (!props.myGroupIds.length) {
+        return null;
+    }
+
+    for (const day of localDays.value) {
+        if (day.date > todayIso) {
+            continue;
+        }
+
+        for (const entry of day.entries) {
+            if (entry.points_mode === 'none') {
+                continue;
+            }
+
+            const recorded = new Set(entry.points.map((p) => p.camp_group_id));
+
+            if (props.myGroupIds.some((id) => !recorded.has(id))) {
+                return entry;
+            }
+        }
+    }
+
+    return null;
+});
+
 // --- Other dialogs ---
-const slotsOpen = ref(false);
-const membersOpen = ref(false);
-const summaryOpen = ref(false);
 const versionsOpen = ref(false);
 
 // --- Fill name days from the Slovak calendar ---
 function fillNames() {
     router.post(fillNameDays(props.camp.id).url, {}, { preserveScroll: true });
-}
-
-// --- Settings / edit camp ---
-const settingsOpen = ref(false);
-const settingsForm = useForm({
-    name: props.camp.name,
-    icon: props.camp.icon,
-    color: props.camp.color,
-    year: props.camp.year,
-    description: props.camp.description ?? '',
-    location: props.camp.location ?? '',
-    start_date: props.camp.start_date,
-    end_date: props.camp.end_date,
-});
-function openSettings() {
-    settingsForm.clearErrors();
-    settingsForm.defaults({
-        name: props.camp.name,
-        icon: props.camp.icon,
-        color: props.camp.color,
-        year: props.camp.year,
-        description: props.camp.description ?? '',
-        location: props.camp.location ?? '',
-        start_date: props.camp.start_date,
-        end_date: props.camp.end_date,
-    });
-    settingsForm.reset();
-    settingsOpen.value = true;
-}
-function submitSettings() {
-    settingsForm.put(updateCamp(props.camp.id).url, {
-        preserveScroll: true,
-        onSuccess: () => (settingsOpen.value = false),
-    });
-}
-function deleteCamp() {
-    if (!confirm(`Naozaj zmazať tábor „${props.camp.name}"? Táto akcia je nezvratná.`)) {
-return;
-}
-
-    router.delete(destroyCamp(props.camp.id).url);
 }
 
 // --- Duplicate camp ---
@@ -294,23 +267,14 @@ function submitDuplicate() {
                 <div>
                     <h1 class="text-2xl font-bold tracking-tight">{{ camp.name }}</h1>
                     <p class="text-sm text-muted-foreground">
-                        {{ camp.year }} · {{ localDays.length }} dní · {{ members.length }} vedúcich
+                        {{ camp.year }} · {{ localDays.length }} dní · {{ membersCount }} vedúcich
                         <span v-if="camp.location"> · <MapPin class="inline size-3.5" /> {{ camp.location }}</span>
                     </p>
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="sm" @click="slotsOpen = true">
-                    <Columns3 /> Časové bloky
-                </Button>
                 <Button variant="outline" size="sm" title="Doplniť meniny z kalendára" @click="fillNames">
                     <CalendarHeart /> Doplniť meniny
-                </Button>
-                <Button variant="outline" size="sm" @click="membersOpen = true">
-                    <Users /> Vedúci
-                </Button>
-                <Button variant="outline" size="sm" @click="summaryOpen = true">
-                    <Sparkles /> AI súhrn
                 </Button>
                 <Button variant="outline" size="sm" @click="openDuplicate">
                     <Copy /> Duplikovať
@@ -328,9 +292,6 @@ function submitDuplicate() {
                     <component :is="camp.schedule_locked ? LockOpen : Lock" />
                     {{ camp.schedule_locked ? 'Odomknúť program' : 'Zamknúť program' }}
                 </Button>
-                <Button v-if="camp.is_owner" variant="outline" size="sm" @click="openSettings">
-                    <Settings /> Nastavenia
-                </Button>
             </div>
         </div>
 
@@ -344,6 +305,21 @@ function submitDuplicate() {
                 <strong>{{ capitalize(dayToReview.weekday) }} {{ dayToReview.label }}</strong> ešte nemá tvoje zhodnotenie.
             </p>
             <Button size="sm" class="ml-auto" @click="onReview(dayToReview)">Zhodnotiť deň</Button>
+        </div>
+
+        <!-- Missing points -->
+        <div
+            v-if="entryNeedingPoints"
+            class="flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-950/30"
+        >
+            <Trophy class="size-5 text-amber-600 dark:text-amber-400" />
+            <p class="text-sm">
+                <strong>{{ entryNeedingPoints.title ?? entryNeedingPoints.activity?.name }}</strong>
+                ešte nemá zapísané body pre tvoju skupinu.
+            </p>
+            <Button as-child size="sm" class="ml-auto">
+                <Link :href="leaderboard(camp.id)">Zapísať body</Link>
+            </Button>
         </div>
 
         <!-- Frozen schedule -->
@@ -417,26 +393,12 @@ function submitDuplicate() {
         :activities="activities"
         :categories="categories"
         :library="library"
+        :leaders="leaders"
         :start-min="addStartMin"
         :editable="!camp.schedule_locked"
     />
     <DayDialog v-model:open="dayOpen" :day="dayForDialog" />
-    <DayReviewDialog v-model:open="reviewOpen" :day="reviewDay" />
-    <SlotsDialog v-model:open="slotsOpen" :camp-id="camp.id" :slots="slots" />
-    <SummaryDialog
-        v-model:open="summaryOpen"
-        :camp-id="camp.id"
-        :days="localDays"
-        :summaries="aiSummaries"
-    />
-    <MembersDialog
-        v-model:open="membersOpen"
-        :camp-id="camp.id"
-        :members="members"
-        :invitations="invitations"
-        :share-link="shareLink"
-        :is-owner="camp.is_owner"
-    />
+    <DayReviewDialog v-model:open="reviewOpen" :day="reviewDay" :questions="feedbackQuestions" />
     <PlanVersionsDialog
         v-model:open="versionsOpen"
         :camp-id="camp.id"
@@ -444,64 +406,6 @@ function submitDuplicate() {
         :is-owner="camp.is_owner"
         :schedule-locked="camp.schedule_locked"
     />
-
-    <!-- Settings -->
-    <Dialog v-model:open="settingsOpen">
-        <DialogContent class="sm:max-w-lg">
-            <DialogHeader>
-                <DialogTitle>Nastavenia tábora</DialogTitle>
-                <DialogDescription>Uprav základné údaje alebo zmaž tábor.</DialogDescription>
-            </DialogHeader>
-            <form class="grid gap-4 px-1" @submit.prevent="submitSettings">
-                <div class="grid gap-2">
-                    <Label for="set-name">Názov</Label>
-                    <Input id="set-name" v-model="settingsForm.name" required />
-                    <InputError :message="settingsForm.errors.name" />
-                </div>
-
-                <CampAppearanceFields
-                    v-model:icon="settingsForm.icon"
-                    v-model:color="settingsForm.color"
-                    v-model:location="settingsForm.location"
-                />
-
-                <div class="grid gap-4 sm:grid-cols-3">
-                    <div class="grid gap-2">
-                        <Label for="set-year">Rok</Label>
-                        <Input id="set-year" v-model="settingsForm.year" type="number" />
-                        <InputError :message="settingsForm.errors.year" />
-                    </div>
-                    <div class="grid gap-2">
-                        <Label for="set-start">Začiatok</Label>
-                        <Input id="set-start" v-model="settingsForm.start_date" type="date" />
-                        <InputError :message="settingsForm.errors.start_date" />
-                    </div>
-                    <div class="grid gap-2">
-                        <Label for="set-end">Koniec</Label>
-                        <Input id="set-end" v-model="settingsForm.end_date" type="date" />
-                        <InputError :message="settingsForm.errors.end_date" />
-                    </div>
-                </div>
-                <p class="-mt-2 text-xs text-muted-foreground">
-                    Dni tábora sú dané dátumami. Zmenou termínu sa posunú (program ostáva); skrátením/predĺžením
-                    sa dni odoberú alebo pridajú.
-                </p>
-                <div class="grid gap-2">
-                    <Label for="set-desc">Popis</Label>
-                    <Textarea id="set-desc" v-model="settingsForm.description" />
-                </div>
-                <DialogFooter class="sm:justify-between">
-                    <Button type="button" variant="ghost" class="text-destructive" @click="deleteCamp">
-                        <Trash2 /> Zmazať tábor
-                    </Button>
-                    <div class="flex gap-2 *:flex-1 sm:*:flex-initial">
-                        <Button type="button" variant="outline" @click="settingsOpen = false">Zrušiť</Button>
-                        <Button type="submit" :disabled="settingsForm.processing">Uložiť</Button>
-                    </div>
-                </DialogFooter>
-            </form>
-        </DialogContent>
-    </Dialog>
 
     <!-- Duplicate -->
     <Dialog v-model:open="duplicateOpen">
