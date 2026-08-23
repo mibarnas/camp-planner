@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Camp;
 use App\Models\CampInvitation;
 use App\Models\CampLeader;
-use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -21,9 +20,42 @@ class CampLeaderController extends Controller
 
         $camp->load([
             'leaders.user:id,email',
-            'members:id,name,email',
             'invitations' => fn ($q) => $q->whereNull('accepted_at'),
         ]);
+
+        // One list of everyone involved: leader rows first (each already carries
+        // whether an account is linked), then invitations nobody has accepted yet.
+        $people = $camp->leaders->map(fn (CampLeader $leader) => [
+            'key' => 'leader-'.$leader->id,
+            'leader_id' => $leader->id,
+            'user_id' => $leader->user_id,
+            'invitation_id' => null,
+            'name' => $leader->name,
+            'email' => $leader->user?->email,
+            'color' => $leader->color,
+            'status' => match (true) {
+                $leader->user_id === $camp->owner_id => 'owner',
+                $leader->user_id !== null => 'member',
+                default => 'name_only',
+            },
+            'invite_link' => null,
+        ])->sortBy(fn (array $p) => match ($p['status']) {
+            'owner' => 0,
+            'member' => 1,
+            default => 2,
+        })->values();
+
+        $invited = $camp->invitations->whereNotNull('email')->map(fn (CampInvitation $i) => [
+            'key' => 'invite-'.$i->id,
+            'leader_id' => null,
+            'user_id' => null,
+            'invitation_id' => $i->id,
+            'name' => null,
+            'email' => $i->email,
+            'color' => null,
+            'status' => 'invited',
+            'invite_link' => route('invitations.show', $i->token),
+        ])->values();
 
         return Inertia::render('camps/Leaders', [
             'camp' => [
@@ -31,25 +63,7 @@ class CampLeaderController extends Controller
                 'name' => $camp->name,
                 'is_owner' => $camp->owner_id === Auth::id(),
             ],
-            'leaders' => $camp->leaders->map(fn (CampLeader $leader) => [
-                'id' => $leader->id,
-                'name' => $leader->name,
-                'user_id' => $leader->user_id,
-                'color' => $leader->color,
-                'email' => $leader->user?->email,
-            ])->values()->all(),
-            'members' => $camp->members->map(fn (User $m) => [
-                'id' => $m->id,
-                'name' => $m->name,
-                'email' => $m->email,
-                'role' => $m->getAttribute('pivot')?->getAttribute('role'),
-            ])->values()->all(),
-            'invitations' => $camp->invitations->whereNotNull('email')->map(fn (CampInvitation $i) => [
-                'id' => $i->id,
-                'email' => $i->email,
-                'role' => $i->role,
-                'link' => route('invitations.show', $i->token),
-            ])->values()->all(),
+            'people' => $people->concat($invited)->values()->all(),
             'shareLink' => ($share = $camp->invitations->firstWhere('email', null)) ? [
                 'id' => $share->id,
                 'link' => route('invitations.show', $share->token),

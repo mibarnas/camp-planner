@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { Head, router, setLayoutProps } from '@inertiajs/vue3';
-import { Medal, Trophy, UserRound } from '@lucide/vue';
-import { computed, reactive, ref, watch, watchEffect } from 'vue';
+import { ChevronDown, Medal, Trophy, UserRound } from '@lucide/vue';
+import { computed, nextTick, reactive, ref, watch, watchEffect } from 'vue';
 import Heading from '@/components/Heading.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
+import { useI18n } from '@/i18n';
 import { colorStyle } from '@/lib/campColors';
 import { index as campsIndex, show } from '@/routes/camps';
 import { update as updatePoints } from '@/routes/entries/points';
@@ -16,6 +22,8 @@ import type {
     ScoringEntry,
     Standing,
 } from '@/types/camp';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     camp: { id: number; name: string };
@@ -29,9 +37,9 @@ const props = defineProps<{
 watchEffect(() => {
     setLayoutProps({
         breadcrumbs: [
-            { title: 'Tábory', href: campsIndex().url },
+            { title: t('nav.camps'), href: campsIndex().url },
             { title: props.camp.name, href: show(props.camp.id).url },
-            { title: 'Rebríček', href: '#' },
+            { title: t('nav.camp.leaderboard'), href: '#' },
         ],
     });
 });
@@ -103,32 +111,139 @@ function isMissing(
     return draftValue(entry.id, groupId) === '';
 }
 
+function dayHasMissing(day: ScoringDay): boolean {
+    return day.entries.some((entry) =>
+        entry.rows.some((row) => isMissing(day, entry, row.group_id)),
+    );
+}
+
+/**
+ * Scoring activities that already happened but still have a blank result.
+ * Anyone on the page can fill these in, so this is not limited to my groups.
+ */
+const pending = computed(() => {
+    const out: { day: ScoringDay; entry: ScoringEntry }[] = [];
+
+    for (const day of props.days) {
+        if (day.date > props.today) {
+            continue;
+        }
+
+        for (const entry of day.entries) {
+            const incomplete = entry.rows.some(
+                (row) => draftValue(entry.id, row.group_id) === '',
+            );
+
+            if (incomplete) {
+                out.push({ day, entry });
+            }
+        }
+    }
+
+    return out;
+});
+
+function goToPending() {
+    const first = pending.value[0];
+
+    if (!first) {
+        return;
+    }
+
+    setOpen(first.day.id, true);
+
+    nextTick(() => {
+        requestAnimationFrame(() =>
+            document
+                .getElementById(`entry-${first.entry.id}`)
+                ?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+        );
+    });
+}
+
+// Open the days that still want results; otherwise just the latest one that
+// has already happened, so the page does not start as a wall of tables.
+const openDays = ref<Set<number>>(new Set());
+watch(
+    () => props.days,
+    () => {
+        const next = new Set(
+            props.days.filter(dayHasMissing).map((day) => day.id),
+        );
+
+        if (!next.size) {
+            const past = props.days.filter((day) => day.date <= props.today);
+            const fallback = past.at(-1) ?? props.days[0];
+
+            if (fallback) {
+                next.add(fallback.id);
+            }
+        }
+
+        openDays.value = next;
+    },
+    { immediate: true },
+);
+
+function setOpen(dayId: number, isOpen: boolean) {
+    const next = new Set(openDays.value);
+
+    if (isOpen) {
+        next.add(dayId);
+    } else {
+        next.delete(dayId);
+    }
+
+    openDays.value = next;
+}
+
 const medalColor = ['text-amber-400', 'text-slate-400', 'text-amber-700'];
 </script>
 
 <template>
-    <Head :title="`Rebríček — ${camp.name}`" />
+    <Head :title="`${t('nav.camp.leaderboard')} — ${camp.name}`" />
 
     <div class="flex h-full flex-1 flex-col gap-6 p-4">
         <Heading
-            title="Rebríček skupín"
-            description="Priebežné poradie súťažiacich skupín."
+            :title="t('leaderboard.title')"
+            :description="t('leaderboard.description')"
         />
 
         <p
             v-if="!groups.length"
             class="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground"
         >
-            Žiadne súťažiace skupiny. Pridaj skupiny a zapni im „Súťaží v
-            bodovaní".
+            {{ t('leaderboard.noGroups') }}
         </p>
 
         <template v-else>
+            <!-- Scoring activities that already happened but have no result -->
+            <div
+                v-if="pending.length"
+                class="flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-950/30"
+            >
+                <Trophy class="size-5 text-amber-600 dark:text-amber-400" />
+                <p class="text-sm">
+                    <strong>
+                        {{
+                            t('leaderboard.pendingCount', {
+                                count: pending.length,
+                            })
+                        }}
+                    </strong>
+                    {{ t('leaderboard.pendingHint') }}
+                </p>
+                <Button size="sm" class="ml-auto" @click="goToPending">
+                    {{ t('leaderboard.pendingAction') }}
+                </Button>
+            </div>
+
             <!-- Standings -->
-            <Card class="max-w-3xl">
+            <Card>
                 <CardHeader>
                     <CardTitle class="flex items-center gap-2">
-                        <Trophy class="size-5 text-amber-500" /> Poradie
+                        <Trophy class="size-5 text-amber-500" />
+                        {{ t('leaderboard.standings') }}
                     </CardTitle>
                 </CardHeader>
                 <CardContent class="grid gap-2">
@@ -136,11 +251,14 @@ const medalColor = ['text-amber-400', 'text-slate-400', 'text-amber-700'];
                         v-for="(standing, i) in standings"
                         :key="standing.group_id"
                         class="flex items-center gap-3 rounded-lg border p-3"
-                        :class="
+                        :class="[
                             myGroupIds.includes(standing.group_id)
                                 ? 'border-primary/50 bg-primary/5'
-                                : ''
-                        "
+                                : '',
+                            i < 3 && !myGroupIds.includes(standing.group_id)
+                                ? 'bg-muted/40'
+                                : '',
+                        ]"
                     >
                         <span
                             class="flex w-8 shrink-0 items-center gap-1 font-semibold tabular-nums"
@@ -203,160 +321,180 @@ const medalColor = ['text-amber-400', 'text-slate-400', 'text-amber-700'];
                                 />
                             </div>
                         </div>
-                        <span class="shrink-0 text-lg font-bold tabular-nums">{{
-                            standing.total
-                        }}</span>
+                        <span class="shrink-0 text-lg font-bold tabular-nums">
+                            {{ standing.total }}
+                        </span>
                     </div>
                 </CardContent>
             </Card>
 
             <!-- Scoring activities -->
             <div class="grid gap-3">
-                <h2 class="text-lg font-semibold">Bodované aktivity</h2>
+                <h2 class="text-lg font-semibold">
+                    {{ t('leaderboard.scoringActivities') }}
+                </h2>
 
                 <p
                     v-if="!days.length"
                     class="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground"
                 >
-                    Zatiaľ žiadna bodovaná aktivita. V pláne otvor aktivitu a
-                    nastav jej „Bodovanie skupín".
+                    {{ t('leaderboard.noScoring') }}
                 </p>
 
-                <Card v-for="day in days" :key="day.id" class="gap-3">
-                    <CardHeader>
-                        <CardTitle class="text-base capitalize"
-                            >{{ day.weekday }} {{ day.label }}</CardTitle
+                <Collapsible
+                    v-for="day in days"
+                    :key="day.id"
+                    :open="openDays.has(day.id)"
+                    @update:open="setOpen(day.id, $event)"
+                >
+                    <Card class="gap-0 overflow-hidden py-0">
+                        <CollapsibleTrigger
+                            class="flex w-full flex-wrap items-center gap-3 p-4 text-left transition-colors hover:bg-muted/50"
                         >
-                    </CardHeader>
-                    <CardContent
-                        class="grid gap-6 xl:grid-cols-2 2xl:grid-cols-3"
-                    >
-                        <div
-                            v-for="entry in day.entries"
-                            :key="entry.id"
-                            class="grid content-start gap-2"
-                        >
-                            <div class="flex flex-wrap items-center gap-2">
-                                <p class="font-medium">{{ entry.title }}</p>
-                                <span class="text-xs text-muted-foreground">{{
-                                    entry.start_time
-                                }}</span>
-                                <Badge variant="outline">
-                                    {{
-                                        entry.points_mode === 'placement'
-                                            ? 'Podľa poradia'
-                                            : 'Priame body'
-                                    }}
-                                </Badge>
-                            </div>
+                            <ChevronDown
+                                class="size-4 shrink-0 text-muted-foreground transition-transform"
+                                :class="
+                                    openDays.has(day.id) ? '' : '-rotate-90'
+                                "
+                            />
+                            <span class="font-medium capitalize">
+                                {{ day.weekday }} {{ day.label }}
+                            </span>
+                            <Badge variant="outline">
+                                {{
+                                    t('leaderboard.entryCount', {
+                                        count: day.entries.length,
+                                    })
+                                }}
+                            </Badge>
+                            <Badge
+                                v-if="dayHasMissing(day)"
+                                variant="outline"
+                                class="border-amber-400 text-amber-700 dark:text-amber-400"
+                            >
+                                {{ t('leaderboard.missingResults') }}
+                            </Badge>
+                        </CollapsibleTrigger>
 
-                            <div class="max-w-xl overflow-x-auto">
-                                <table class="w-full text-sm">
-                                    <thead>
-                                        <tr
-                                            class="text-left text-xs text-muted-foreground"
-                                        >
-                                            <th class="pb-1 font-medium">
-                                                Skupina
-                                            </th>
-                                            <th class="pb-1 font-medium">
-                                                {{
-                                                    entry.points_mode ===
-                                                    'placement'
-                                                        ? 'Výsledok'
-                                                        : 'Body'
-                                                }}
-                                            </th>
-                                            <th
-                                                v-if="
-                                                    entry.points_mode ===
-                                                    'placement'
-                                                "
-                                                class="pb-1 font-medium"
+                        <CollapsibleContent>
+                            <div
+                                class="grid gap-3 border-t p-4 xl:grid-cols-2 2xl:grid-cols-3"
+                            >
+                                <div
+                                    v-for="entry in day.entries"
+                                    :id="`entry-${entry.id}`"
+                                    :key="entry.id"
+                                    class="flex flex-col rounded-xl border"
+                                >
+                                    <div
+                                        class="flex items-start gap-2 border-b p-3"
+                                    >
+                                        <div class="min-w-0 flex-1">
+                                            <p class="truncate font-medium">
+                                                {{ entry.title }}
+                                            </p>
+                                            <p
+                                                class="text-xs text-muted-foreground tabular-nums"
                                             >
-                                                Body
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr
+                                                {{ entry.start_time }}
+                                            </p>
+                                        </div>
+                                        <Badge
+                                            variant="outline"
+                                            class="shrink-0"
+                                        >
+                                            {{
+                                                entry.points_mode ===
+                                                'placement'
+                                                    ? t('points.mode.placement')
+                                                    : t('points.mode.raw')
+                                            }}
+                                        </Badge>
+                                    </div>
+
+                                    <!--
+                                        Flex rows, not a table: the group name
+                                        takes the free space so the field always
+                                        sits flush with the card's right edge.
+                                    -->
+                                    <div class="flex-1 p-3 text-sm">
+                                        <div
                                             v-for="row in entry.rows"
                                             :key="row.group_id"
+                                            class="flex items-center gap-3 border-b py-1.5 last:border-0"
                                         >
-                                            <td class="py-1 pr-3">
-                                                <span
-                                                    class="flex items-center gap-2"
-                                                >
-                                                    <span
-                                                        class="size-2.5 shrink-0 rounded-full"
-                                                        :class="
-                                                            colorStyle(
-                                                                groupById.get(
-                                                                    row.group_id,
-                                                                )?.color,
-                                                            ).dot
-                                                        "
-                                                    />
-                                                    {{
+                                            <span
+                                                class="size-2.5 shrink-0 rounded-full"
+                                                :class="
+                                                    colorStyle(
                                                         groupById.get(
                                                             row.group_id,
-                                                        )?.name
-                                                    }}
-                                                </span>
-                                            </td>
-                                            <td class="py-1 pr-3">
-                                                <Input
-                                                    v-model="
-                                                        drafts[entry.id][
-                                                            row.group_id
-                                                        ]
-                                                    "
-                                                    type="number"
-                                                    step="any"
-                                                    inputmode="decimal"
-                                                    class="h-8 w-28"
-                                                    :class="
-                                                        isMissing(
-                                                            day,
-                                                            entry,
-                                                            row.group_id,
-                                                        )
-                                                            ? 'border-amber-400'
-                                                            : ''
-                                                    "
-                                                    placeholder="—"
-                                                />
-                                            </td>
-                                            <td
+                                                        )?.color,
+                                                    ).dot
+                                                "
+                                            />
+                                            <span
+                                                class="min-w-0 flex-1 truncate"
+                                            >
+                                                {{
+                                                    groupById.get(row.group_id)
+                                                        ?.name
+                                                }}
+                                            </span>
+                                            <span
                                                 v-if="
                                                     entry.points_mode ===
                                                     'placement'
                                                 "
-                                                class="py-1 font-medium tabular-nums"
+                                                class="shrink-0 font-medium tabular-nums"
+                                                :title="t('points.points')"
                                             >
                                                 {{ row.awarded ?? '—' }}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                                            </span>
+                                            <Input
+                                                v-model="
+                                                    drafts[entry.id][
+                                                        row.group_id
+                                                    ]
+                                                "
+                                                type="number"
+                                                step="any"
+                                                inputmode="decimal"
+                                                class="h-8 w-24 shrink-0 [appearance:textfield] text-right tabular-nums [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                                :class="
+                                                    isMissing(
+                                                        day,
+                                                        entry,
+                                                        row.group_id,
+                                                    )
+                                                        ? 'border-amber-400'
+                                                        : ''
+                                                "
+                                                placeholder="—"
+                                            />
+                                        </div>
+                                    </div>
 
-                            <div class="flex max-w-xl justify-end">
-                                <Button
-                                    size="sm"
-                                    :disabled="saving === entry.id"
-                                    @click="save(entry)"
-                                >
-                                    {{
-                                        saving === entry.id
-                                            ? 'Ukladám…'
-                                            : 'Uložiť body'
-                                    }}
-                                </Button>
+                                    <div
+                                        class="flex justify-end border-t px-3 py-2"
+                                    >
+                                        <Button
+                                            size="sm"
+                                            :disabled="saving === entry.id"
+                                            @click="save(entry)"
+                                        >
+                                            {{
+                                                saving === entry.id
+                                                    ? t('common.saving')
+                                                    : t('points.save')
+                                            }}
+                                        </Button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                        </CollapsibleContent>
+                    </Card>
+                </Collapsible>
             </div>
         </template>
     </div>

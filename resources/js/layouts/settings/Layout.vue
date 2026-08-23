@@ -4,6 +4,7 @@ import Heading from '@/components/Heading.vue';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
+import { useI18n } from '@/i18n';
 import { toUrl } from '@/lib/utils';
 import { edit as editAi } from '@/routes/ai';
 import { edit as editAppearance } from '@/routes/appearance';
@@ -11,21 +12,23 @@ import { edit as editProfile } from '@/routes/profile';
 import { edit as editSecurity } from '@/routes/security';
 import type { NavItem } from '@/types';
 
+const { t } = useI18n();
+
 const sidebarNavItems: NavItem[] = [
     {
-        title: 'Profil',
+        title: t('settings.nav.profile'),
         href: editProfile(),
     },
     {
-        title: 'Zabezpečenie',
+        title: t('settings.nav.security'),
         href: editSecurity(),
     },
     {
-        title: 'Vzhľad',
+        title: t('settings.nav.appearance'),
         href: editAppearance(),
     },
     {
-        title: 'AI súhrny',
+        title: t('settings.nav.ai'),
         href: editAi(),
     },
 ];
@@ -36,15 +39,15 @@ const { isCurrentOrParentUrl } = useCurrentUrl();
 <template>
     <div class="px-4 py-6">
         <Heading
-            title="Nastavenia"
-            description="Spravuj svoj profil a nastavenia účtu"
+            :title="t('settings.title')"
+            :description="t('settings.description')"
         />
 
         <div class="flex flex-col lg:flex-row lg:space-x-12">
             <aside class="w-full max-w-xl lg:w-48">
                 <nav
                     class="flex flex-col space-y-1 space-x-0"
-                    aria-label="Settings"
+                    :aria-label="t('settings.title')"
                 >
                     <Button
                         v-for="item in sidebarNavItems"
@@ -66,8 +69,8 @@ const { isCurrentOrParentUrl } = useCurrentUrl();
 
             <Separator class="my-6 lg:hidden" />
 
-            <div class="flex-1 md:max-w-2xl">
-                <section class="max-w-xl space-y-12">
+            <div class="min-w-0 flex-1">
+                <section class="max-w-5xl space-y-12">
                     <slot />
                 </section>
             </div>

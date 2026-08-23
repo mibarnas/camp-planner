@@ -296,6 +296,22 @@ export type CampLeader = {
     email?: string | null;
 };
 
+/**
+ * Everyone involved in the camp as one list: leader rows (with or without a
+ * linked account) and invitations nobody has accepted yet.
+ */
+export type CampPerson = {
+    key: string;
+    leader_id: number | null;
+    user_id: number | null;
+    invitation_id: number | null;
+    name: string | null;
+    email: string | null;
+    color: string | null;
+    status: 'owner' | 'member' | 'invited' | 'name_only';
+    invite_link: string | null;
+};
+
 /** A camp-defined kind of group: "Detské skupiny", "Fotografi", … */
 export type GroupType = {
     id: number;

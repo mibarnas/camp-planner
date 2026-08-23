@@ -9,8 +9,11 @@ import {
     InputOTPGroup,
     InputOTPSlot,
 } from '@/components/ui/input-otp';
+import { useI18n } from '@/i18n';
 import { store } from '@/routes/two-factor/login';
 import type { TwoFactorConfigContent } from '@/types';
+
+const { t } = useI18n();
 
 const showRecoveryInput = ref<boolean>(false);
 const code = ref<string>('');
@@ -18,18 +21,16 @@ const code = ref<string>('');
 const authConfigContent = computed<TwoFactorConfigContent>(() => {
     if (showRecoveryInput.value) {
         return {
-            title: 'Záložný kód',
-            description:
-                'Potvrď prístup k účtu zadaním jedného zo svojich záložných kódov.',
-            buttonText: 'prihlásiť sa overovacím kódom',
+            title: t('auth.twoFactor.recovery.title'),
+            description: t('auth.twoFactor.recovery.description'),
+            buttonText: t('auth.twoFactor.useCode'),
         };
     }
 
     return {
-        title: 'Overovací kód',
-        description:
-            'Zadaj overovací kód z tvojej autentifikačnej aplikácie.',
-        buttonText: 'prihlásiť sa záložným kódom',
+        title: t('auth.twoFactor.code.title'),
+        description: t('auth.twoFactor.code.description'),
+        buttonText: t('auth.twoFactor.useRecovery'),
     };
 });
 
@@ -48,7 +49,7 @@ const toggleRecoveryMode = (clearErrors: () => void): void => {
 </script>
 
 <template>
-    <Head title="Dvojfaktorové overenie" />
+    <Head :title="t('auth.twoFactor.title')" />
 
     <div class="space-y-6">
         <template v-if="!showRecoveryInput">
@@ -82,11 +83,11 @@ const toggleRecoveryMode = (clearErrors: () => void): void => {
                     </div>
                     <InputError :message="errors.code" />
                 </div>
-                <Button type="submit" class="w-full" :disabled="processing"
-                    >Pokračovať</Button
-                >
+                <Button type="submit" class="w-full" :disabled="processing">{{
+                    t('common.continue')
+                }}</Button>
                 <div class="text-center text-sm text-muted-foreground">
-                    <span>alebo môžeš </span>
+                    <span>{{ t('auth.twoFactor.orYouCan') }} </span>
                     <button
                         type="button"
                         class="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
@@ -108,17 +109,17 @@ const toggleRecoveryMode = (clearErrors: () => void): void => {
                 <Input
                     name="recovery_code"
                     type="text"
-                    placeholder="Zadaj záložný kód"
+                    :placeholder="t('auth.twoFactor.recovery.placeholder')"
                     :autofocus="showRecoveryInput"
                     required
                 />
                 <InputError :message="errors.recovery_code" />
-                <Button type="submit" class="w-full" :disabled="processing"
-                    >Pokračovať</Button
-                >
+                <Button type="submit" class="w-full" :disabled="processing">{{
+                    t('common.continue')
+                }}</Button>
 
                 <div class="text-center text-sm text-muted-foreground">
-                    <span>alebo môžeš </span>
+                    <span>{{ t('auth.twoFactor.orYouCan') }} </span>
                     <button
                         type="button"
                         class="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"

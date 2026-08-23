@@ -18,6 +18,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
+import { useI18n } from '@/i18n';
 import { colorStyle } from '@/lib/campColors';
 import { campIcon } from '@/lib/campIcons';
 import { feedback, leaderboard, settings, show } from '@/routes/camps';
@@ -25,6 +26,8 @@ import { index as groupsIndex } from '@/routes/groups';
 import { index as leadersIndex } from '@/routes/leaders';
 import { index as slotsIndex } from '@/routes/slots';
 import type { NavItem } from '@/types';
+
+const { t } = useI18n();
 
 const page = usePage();
 const camp = computed(() => page.props.campContext);
@@ -37,17 +40,21 @@ const items = computed<NavItem[]>(() => {
     }
 
     const list: NavItem[] = [
-        { title: 'Plánovač', href: show(c.id), icon: Calendar },
-        { title: 'Vedúci', href: leadersIndex(c.id), icon: Users },
-        { title: 'Skupiny', href: groupsIndex(c.id), icon: Flag },
-        { title: 'Časové bloky', href: slotsIndex(c.id), icon: Columns3 },
-        { title: 'Spätná väzba', href: feedback(c.id), icon: Star },
-        { title: 'Rebríček', href: leaderboard(c.id), icon: Trophy },
+        { title: t('nav.camp.planner'), href: show(c.id), icon: Calendar },
+        { title: t('nav.camp.leaders'), href: leadersIndex(c.id), icon: Users },
+        { title: t('nav.camp.groups'), href: groupsIndex(c.id), icon: Flag },
+        { title: t('nav.camp.slots'), href: slotsIndex(c.id), icon: Columns3 },
+        { title: t('nav.camp.feedback'), href: feedback(c.id), icon: Star },
+        {
+            title: t('nav.camp.leaderboard'),
+            href: leaderboard(c.id),
+            icon: Trophy,
+        },
     ];
 
     if (c.is_owner) {
         list.push({
-            title: 'Nastavenia',
+            title: t('nav.camp.settings'),
             href: settings(c.id),
             icon: Settings,
         });

@@ -1,16 +1,23 @@
 <script setup lang="ts">
-import { Form, Head } from '@inertiajs/vue3';
+import { Form, Head, setLayoutProps } from '@inertiajs/vue3';
+import { watchEffect } from 'vue';
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { useI18n } from '@/i18n';
 import { logout } from '@/routes';
 import { send } from '@/routes/verification';
 
-defineOptions({
-    layout: {
-        title: 'Overenie e-mailu',
-        description: 'Over si e-mailovú adresu kliknutím na odkaz, ktorý sme ti práve poslali.',
-    },
+const { t } = useI18n();
+
+// The layout props carry translated text, so they have to be set during
+// render rather than in defineOptions(), which is hoisted out of setup()
+// and would freeze the language at module-evaluation time.
+watchEffect(() => {
+    setLayoutProps({
+        title: t('auth.verify.title'),
+        description: t('auth.verify.description'),
+    });
 });
 
 defineProps<{
@@ -19,13 +26,13 @@ defineProps<{
 </script>
 
 <template>
-    <Head title="Overenie e-mailu" />
+    <Head :title="t('auth.verify.title')" />
 
     <div
         v-if="status === 'verification-link-sent'"
         class="mb-4 text-center text-sm font-medium text-green-600"
     >
-        Na e-mail, ktorý si zadal pri registrácii, sme poslali nový overovací odkaz.
+        {{ t('auth.verify.resent') }}
     </div>
 
     <Form
@@ -35,11 +42,11 @@ defineProps<{
     >
         <Button :disabled="processing" variant="secondary">
             <Spinner v-if="processing" />
-            Poslať overovací e-mail znova
+            {{ t('auth.verify.resend') }}
         </Button>
 
         <TextLink :href="logout()" as="button" class="mx-auto block text-sm">
-            Odhlásiť sa
+            {{ t('user.logout') }}
         </TextLink>
     </Form>
 </template>

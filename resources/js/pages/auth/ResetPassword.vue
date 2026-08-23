@@ -1,19 +1,25 @@
 <script setup lang="ts">
-import { Form, Head } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { Form, Head, setLayoutProps } from '@inertiajs/vue3';
+import { ref, watchEffect } from 'vue';
 import InputError from '@/components/InputError.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import { useI18n } from '@/i18n';
 import { update } from '@/routes/password';
 
-defineOptions({
-    layout: {
-        title: 'Obnova hesla',
-        description: 'Zadaj svoje nové heslo',
-    },
+const { t } = useI18n();
+
+// The layout props carry translated text, so they have to be set during
+// render rather than in defineOptions(), which is hoisted out of setup()
+// and would freeze the language at module-evaluation time.
+watchEffect(() => {
+    setLayoutProps({
+        title: t('auth.reset.title'),
+        description: t('auth.reset.description'),
+    });
 });
 
 const props = defineProps<{
@@ -26,7 +32,7 @@ const inputEmail = ref(props.email);
 </script>
 
 <template>
-    <Head title="Obnova hesla" />
+    <Head :title="t('auth.reset.title')" />
 
     <Form
         v-bind="update.form()"
@@ -36,7 +42,7 @@ const inputEmail = ref(props.email);
     >
         <div class="grid gap-6">
             <div class="grid gap-2">
-                <Label for="email">E-mail</Label>
+                <Label for="email">{{ t('auth.field.email') }}</Label>
                 <Input
                     id="email"
                     type="email"
@@ -50,27 +56,29 @@ const inputEmail = ref(props.email);
             </div>
 
             <div class="grid gap-2">
-                <Label for="password">Heslo</Label>
+                <Label for="password">{{ t('auth.field.password') }}</Label>
                 <PasswordInput
                     id="password"
                     name="password"
                     autocomplete="new-password"
                     class="mt-1 block w-full"
                     autofocus
-                    placeholder="Heslo"
+                    :placeholder="t('auth.field.password')"
                     :passwordrules="passwordRules"
                 />
                 <InputError :message="errors.password" />
             </div>
 
             <div class="grid gap-2">
-                <Label for="password_confirmation"> Potvrdenie hesla </Label>
+                <Label for="password_confirmation">{{
+                    t('auth.field.passwordConfirm')
+                }}</Label>
                 <PasswordInput
                     id="password_confirmation"
                     name="password_confirmation"
                     autocomplete="new-password"
                     class="mt-1 block w-full"
-                    placeholder="Zopakuj heslo"
+                    :placeholder="t('auth.placeholder.passwordConfirm')"
                     :passwordrules="passwordRules"
                 />
                 <InputError :message="errors.password_confirmation" />
@@ -83,7 +91,7 @@ const inputEmail = ref(props.email);
                 data-test="reset-password-button"
             >
                 <Spinner v-if="processing" />
-                Obnoviť heslo
+                {{ t('auth.reset.submit') }}
             </Button>
         </div>
     </Form>

@@ -80,6 +80,12 @@ return [
 
     'locale' => env('APP_LOCALE', 'en'),
 
+    /*
+    | The locales the UI ships translations for. Drives the language
+    | switcher and validates the `locale` cookie.
+    */
+    'supported_locales' => ['sk', 'en'],
+
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),

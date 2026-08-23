@@ -162,10 +162,12 @@ it('sends the leader list to the planner and the leaders page', function () {
     $this->actingAs($owner)
         ->get("/camps/{$camp->id}/leaders")
         ->assertInertia(fn ($page) => $page
-            ->has('leaders', 2)
-            ->where('leaders.0.name', 'Katka M.')
-            ->where('leaders.0.user_id', null)
-            ->where('leaders.1.email', $owner->email)
+            ->has('people', 2)
+            ->where('people.0.status', 'owner')
+            ->where('people.0.email', $owner->email)
+            ->where('people.1.name', 'Katka M.')
+            ->where('people.1.status', 'name_only')
+            ->where('people.1.user_id', null)
         );
 });
 

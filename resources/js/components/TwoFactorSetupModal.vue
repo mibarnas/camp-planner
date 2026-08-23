@@ -21,8 +21,11 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { useAppearance } from '@/composables/useAppearance';
 import { useTwoFactorAuth } from '@/composables/useTwoFactorAuth';
+import { useI18n } from '@/i18n';
 import { confirm } from '@/routes/two-factor';
 import type { TwoFactorConfigContent } from '@/types';
+
+const { t } = useI18n();
 
 type Props = {
     requiresConfirmation: boolean;
@@ -46,26 +49,24 @@ const pinInputContainerRef = useTemplateRef('pinInputContainerRef');
 const modalConfig = computed<TwoFactorConfigContent>(() => {
     if (props.twoFactorEnabled) {
         return {
-            title: 'Dvojfaktorové overenie zapnuté',
-            description:
-                'Dvojfaktorové overenie je zapnuté. Naskenuj QR kód alebo zadaj kľúč v autentifikačnej aplikácii.',
-            buttonText: 'Zavrieť',
+            title: t('settings.twoFactor.modal.enabledTitle'),
+            description: t('settings.twoFactor.modal.enabledBody'),
+            buttonText: t('common.close'),
         };
     }
 
     if (showVerificationStep.value) {
         return {
-            title: 'Over overovací kód',
-            description: 'Zadaj 6-miestny kód z autentifikačnej aplikácie',
-            buttonText: 'Pokračovať',
+            title: t('settings.twoFactor.modal.verifyTitle'),
+            description: t('settings.twoFactor.modal.verifyBody'),
+            buttonText: t('common.continue'),
         };
     }
 
     return {
-        title: 'Zapnúť dvojfaktorové overenie',
-        description:
-            'Pre dokončenie naskenuj QR kód alebo zadaj kľúč v autentifikačnej aplikácii',
-        buttonText: 'Pokračovať',
+        title: t('settings.twoFactor.modal.setupTitle'),
+        description: t('settings.twoFactor.modal.setupBody'),
+        buttonText: t('common.continue'),
     };
 });
 
@@ -196,9 +197,9 @@ watch(
                             <div
                                 class="absolute inset-0 top-1/2 h-px w-full bg-border"
                             />
-                            <span class="relative bg-card px-2 py-1"
-                                >alebo zadaj kód ručne</span
-                            >
+                            <span class="relative bg-card px-2 py-1">{{
+                                t('settings.twoFactor.modal.manual')
+                            }}</span>
                         </div>
 
                         <div
@@ -279,14 +280,14 @@ watch(
                                     @click="showVerificationStep = false"
                                     :disabled="processing"
                                 >
-                                    Back
+                                    {{ t('common.back') }}
                                 </Button>
                                 <Button
                                     type="submit"
                                     class="w-auto flex-1"
                                     :disabled="processing || code.length < 6"
                                 >
-                                    Confirm
+                                    {{ t('common.confirm') }}
                                 </Button>
                             </div>
                         </div>

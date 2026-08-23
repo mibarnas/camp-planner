@@ -69,7 +69,7 @@ class LeaderboardController extends Controller
                 return [
                     'id' => $day->id,
                     'date' => $day->date->toDateString(),
-                    'weekday' => Weekdays::sk($day->date->dayOfWeekIso),
+                    'weekday' => Weekdays::for($day->date->dayOfWeekIso),
                     'label' => $day->date->format('j.n.'),
                     'entries' => $entries,
                 ];

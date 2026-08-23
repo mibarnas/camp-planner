@@ -15,8 +15,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useI18n } from '@/i18n';
 import { update as updateDay } from '@/routes/days';
 import type { CampDay } from '@/types/camp';
+
+const { t } = useI18n();
 
 const props = defineProps<{ open: boolean; day: CampDay | null }>();
 const emit = defineEmits<{ 'update:open': [value: boolean] }>();
@@ -68,53 +71,88 @@ function submit() {
         <DialogContent class="sm:max-w-lg">
             <DialogHeader>
                 <DialogTitle>{{ day?.weekday }} · {{ day?.label }}</DialogTitle>
-                <DialogDescription>Detaily dňa, meniny, narodeniny a poznámky.</DialogDescription>
+                <DialogDescription>{{
+                    t('day.dialog.description')
+                }}</DialogDescription>
             </DialogHeader>
 
             <form class="grid gap-4 px-1" @submit.prevent="submit">
                 <label class="flex items-center gap-3 rounded-lg border p-3">
-                    <Checkbox :model-value="form.is_trip" @update:model-value="form.is_trip = $event === true" />
+                    <Checkbox
+                        :model-value="form.is_trip"
+                        @update:model-value="form.is_trip = $event === true"
+                    />
                     <span>
-                        <span class="font-medium">Celodenný výlet</span>
-                        <span class="block text-sm text-muted-foreground">Zvýrazní deň (utorky/štvrtky).</span>
+                        <span class="font-medium">{{ t('day.trip') }}</span>
+                        <span class="block text-sm text-muted-foreground">{{
+                            t('day.tripHint')
+                        }}</span>
                     </span>
                 </label>
 
                 <div v-if="form.is_trip" class="grid gap-2">
-                    <Label for="day-trip">Cieľ výletu</Label>
-                    <Input id="day-trip" v-model="form.trip_name" placeholder="Napr. výlet na hrad" />
+                    <Label for="day-trip">{{ t('day.tripName') }}</Label>
+                    <Input
+                        id="day-trip"
+                        v-model="form.trip_name"
+                        :placeholder="t('day.tripPlaceholder')"
+                    />
                     <InputError :message="form.errors.trip_name" />
                 </div>
 
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div class="grid gap-2">
-                        <Label for="day-namedays">Meniny</Label>
+                        <Label for="day-namedays">{{
+                            t('day.nameDays')
+                        }}</Label>
                         <Input id="day-namedays" v-model="form.name_days" />
                         <InputError :message="form.errors.name_days" />
                     </div>
                     <div class="grid gap-2">
-                        <Label for="day-birthdays">Narodeniny</Label>
+                        <Label for="day-birthdays">{{
+                            t('day.birthdays')
+                        }}</Label>
                         <Input id="day-birthdays" v-model="form.birthdays" />
                         <InputError :message="form.errors.birthdays" />
                     </div>
                 </div>
 
                 <div class="grid gap-2">
-                    <Label for="day-materials">Potrebný materiál (TODO)</Label>
-                    <Textarea id="day-materials" v-model="form.materials" class="min-h-20" />
+                    <Label for="day-materials">{{ t('day.materials') }}</Label>
+                    <Textarea
+                        id="day-materials"
+                        v-model="form.materials"
+                        class="min-h-20"
+                    />
                     <InputError :message="form.errors.materials" />
                 </div>
 
                 <div class="grid gap-2">
-                    <Label for="day-notes">Poznámky / zhodnotenie</Label>
-                    <Textarea id="day-notes" v-model="form.notes" class="min-h-20" />
+                    <Label for="day-notes">{{ t('day.notes') }}</Label>
+                    <Textarea
+                        id="day-notes"
+                        v-model="form.notes"
+                        class="min-h-20"
+                    />
                     <InputError :message="form.errors.notes" />
                 </div>
             </form>
 
             <DialogFooter>
-                <Button type="button" variant="outline" @click="emit('update:open', false)">Zrušiť</Button>
-                <Button type="button" :disabled="form.processing" @click="submit">Uložiť</Button>
+                <Button
+                    type="button"
+                    variant="outline"
+                    @click="emit('update:open', false)"
+                >
+                    {{ t('common.cancel') }}
+                </Button>
+                <Button
+                    type="button"
+                    :disabled="form.processing"
+                    @click="submit"
+                >
+                    {{ t('common.save') }}
+                </Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

@@ -22,6 +22,10 @@ class ProfileController extends Controller
         return Inertia::render('settings/Profile', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'status' => $request->session()->get('status'),
+            // Deleting the account cascades to the camps it owns, which takes
+            // them away from every other leader too. Name them so the
+            // confirmation the user gives is an informed one.
+            'ownedCamps' => $request->user()?->ownedCamps()->orderBy('name')->pluck('name')->all() ?? [],
         ]);
     }
 

@@ -2,12 +2,14 @@
 import { Form } from '@inertiajs/vue3';
 import { ShieldCheck } from '@lucide/vue';
 import { onUnmounted, ref } from 'vue';
-import Heading from '@/components/Heading.vue';
 import TwoFactorRecoveryCodes from '@/components/TwoFactorRecoveryCodes.vue';
 import TwoFactorSetupModal from '@/components/TwoFactorSetupModal.vue';
 import { Button } from '@/components/ui/button';
 import { useTwoFactorAuth } from '@/composables/useTwoFactorAuth';
+import { useI18n } from '@/i18n';
 import { disable, enable } from '@/routes/two-factor';
+
+const { t } = useI18n();
 
 export type Props = {
     canManageTwoFactor?: boolean;
@@ -29,23 +31,17 @@ onUnmounted(() => clearTwoFactorAuthData());
 
 <template>
     <div v-if="canManageTwoFactor" class="space-y-6">
-        <Heading
-            variant="small"
-            title="Dvojfaktorové overenie"
-            description="Spravuj nastavenia dvojfaktorového overenia"
-        />
-
         <div
             v-if="!twoFactorEnabled"
             class="flex flex-col items-start justify-start space-y-4"
         >
             <p class="text-sm text-muted-foreground">
-                Po zapnutí dvojfaktorového overenia budeš pri prihlásení vyzvaný na bezpečný kód, ktorý získaš z aplikácie s podporou TOTP v telefóne.
+                {{ t('settings.twoFactor.offBody') }}
             </p>
 
             <div>
                 <Button v-if="hasSetupData" @click="showSetupModal = true">
-                    <ShieldCheck />Pokračovať v nastavení
+                    <ShieldCheck />{{ t('settings.twoFactor.continueSetup') }}
                 </Button>
                 <Form
                     v-else
@@ -54,7 +50,7 @@ onUnmounted(() => clearTwoFactorAuthData());
                     #default="{ processing }"
                 >
                     <Button type="submit" :disabled="processing">
-                        Zapnúť 2FA
+                        {{ t('settings.twoFactor.enable') }}
                     </Button>
                 </Form>
             </div>
@@ -62,7 +58,7 @@ onUnmounted(() => clearTwoFactorAuthData());
 
         <div v-else class="flex flex-col items-start justify-start space-y-4">
             <p class="text-sm text-muted-foreground">
-                Pri prihlásení budeš vyzvaný na bezpečný náhodný kód, ktorý získaš z aplikácie s podporou TOTP v telefóne.
+                {{ t('settings.twoFactor.onBody') }}
             </p>
 
             <div class="relative inline">
@@ -72,7 +68,7 @@ onUnmounted(() => clearTwoFactorAuthData());
                         type="submit"
                         :disabled="processing"
                     >
-                        Vypnúť 2FA
+                        {{ t('settings.twoFactor.disable') }}
                     </Button>
                 </Form>
             </div>

@@ -12,12 +12,16 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useI18n } from '@/i18n';
+import { dateLocale } from '@/lib/datetime';
 import {
     destroy as destroyVersion,
     restore as restoreVersion,
     store as storeVersion,
 } from '@/routes/versions';
 import type { PlanVersion } from '@/types/camp';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     open: boolean;
@@ -30,7 +34,9 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:open': [value: boolean] }>();
 
 const today = new Date();
-const form = useForm({ name: `Verzia ${today.getDate()}.${today.getMonth() + 1}.` });
+const form = useForm({
+    name: `Verzia ${today.getDate()}.${today.getMonth() + 1}.`,
+});
 
 function save() {
     form.post(storeVersion(props.campId).url, {
@@ -40,12 +46,7 @@ function save() {
 }
 
 function restore(version: PlanVersion) {
-    if (
-        !confirm(
-            `Obnoviť verziu „${version.name}"? Aktuálny program sa najprv uloží ako záloha. ` +
-                'Zmažú sa aj hodnotenia aktivít a zapísané body.',
-        )
-    ) {
+    if (!confirm(t('versions.plan.confirmRestore', { name: version.name }))) {
         return;
     }
 
@@ -57,13 +58,16 @@ function restore(version: PlanVersion) {
 }
 
 function remove(version: PlanVersion) {
-    if (!confirm(`Zmazať verziu „${version.name}"?`)) {
+    if (!confirm(t('versions.confirmDelete', { name: version.name }))) {
         return;
     }
 
-    router.delete(destroyVersion({ camp: props.campId, planVersion: version.id }).url, {
-        preserveScroll: true,
-    });
+    router.delete(
+        destroyVersion({ camp: props.campId, planVersion: version.id }).url,
+        {
+            preserveScroll: true,
+        },
+    );
 }
 
 function formatDate(iso: string | null): string {
@@ -71,7 +75,7 @@ function formatDate(iso: string | null): string {
         return '';
     }
 
-    return new Date(iso).toLocaleString('sk-SK', {
+    return new Date(iso).toLocaleString(dateLocale(), {
         day: 'numeric',
         month: 'numeric',
         year: 'numeric',
@@ -86,22 +90,25 @@ function formatDate(iso: string | null): string {
         <DialogContent class="sm:max-w-lg">
             <DialogHeader>
                 <DialogTitle class="flex items-center gap-2">
-                    <History class="size-5" /> Verzie plánu
+                    <History class="size-5" /> {{ t('versions.plan.title') }}
                 </DialogTitle>
                 <DialogDescription>
-                    Ulož si stav programu pred väčšou zmenou a kedykoľvek sa k nemu vráť.
-                    Verzia obsahuje celý rozvrh — aktivity, časové bloky aj ich denné úpravy.
+                    {{ t('versions.plan.description') }}
                 </DialogDescription>
             </DialogHeader>
 
-            <form v-if="isOwner" class="flex flex-col gap-2 sm:flex-row sm:items-end" @submit.prevent="save">
+            <form
+                v-if="isOwner"
+                class="flex flex-col gap-2 sm:flex-row sm:items-end"
+                @submit.prevent="save"
+            >
                 <div class="grid flex-1 gap-2">
-                    <Label for="version-name">Názov verzie</Label>
+                    <Label for="version-name">{{ t('versions.name') }}</Label>
                     <Input id="version-name" v-model="form.name" required />
                     <InputError :message="form.errors.name" />
                 </div>
                 <Button type="submit" :disabled="form.processing">
-                    <Save /> Uložiť aktuálny stav
+                    <Save /> {{ t('versions.saveCurrent') }}
                 </Button>
             </form>
 
@@ -109,7 +116,7 @@ function formatDate(iso: string | null): string {
                 v-if="isOwner && scheduleLocked"
                 class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-200"
             >
-                Program je uzamknutý — pred obnovením verzie ho najprv odomkni.
+                {{ t('versions.plan.locked') }}
             </p>
 
             <div class="grid max-h-80 gap-2 overflow-y-auto pr-1">
@@ -122,14 +129,28 @@ function formatDate(iso: string | null): string {
                         <p class="truncate font-medium">{{ version.name }}</p>
                         <p class="truncate text-xs text-muted-foreground">
                             {{ formatDate(version.created_at) }}
-                            <span v-if="version.author"> · {{ version.author }}</span>
+                            <span v-if="version.author">
+                                · {{ version.author }}</span
+                            >
                         </p>
                     </div>
-                    <div v-if="isOwner" class="flex shrink-0 items-center gap-1">
-                        <Button variant="outline" size="sm" @click="restore(version)">
-                            <RotateCcw /> Obnoviť
+                    <div
+                        v-if="isOwner"
+                        class="flex shrink-0 items-center gap-1"
+                    >
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            @click="restore(version)"
+                        >
+                            <RotateCcw /> {{ t('versions.restore') }}
                         </Button>
-                        <Button variant="ghost" size="icon-sm" title="Zmazať verziu" @click="remove(version)">
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            :title="t('versions.delete')"
+                            @click="remove(version)"
+                        >
                             <Trash2 class="text-destructive" />
                         </Button>
                     </div>
@@ -138,7 +159,7 @@ function formatDate(iso: string | null): string {
                     v-if="!versions.length"
                     class="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground"
                 >
-                    Zatiaľ žiadne uložené verzie.
+                    {{ t('versions.empty') }}
                 </p>
             </div>
         </DialogContent>

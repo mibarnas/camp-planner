@@ -258,7 +258,7 @@ it('saves and restores a plan version, keeping a backup', function () {
         ->and($restored->first()->title)->toBe('Pôvodná')
         ->and($camp->timeSlots()->count())->toBe(1)
         ->and($day->slotOverrides()->count())->toBe(1)
-        ->and(PlanVersion::where('name', 'Pred obnovením: V1')->exists())->toBeTrue();
+        ->and(PlanVersion::where('name', __('Before restoring: :name', ['name' => 'V1']))->exists())->toBeTrue();
 });
 
 it('restores onto days matched by date and skips dates that are gone', function () {

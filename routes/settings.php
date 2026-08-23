@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Settings\AiController;
+use App\Http\Controllers\Settings\DataExportController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use Illuminate\Auth\Middleware\RequirePassword;
@@ -11,6 +12,10 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
+
+    // GDPR Art. 15 / Art. 20 — everything we hold about the user, as JSON.
+    Route::get('settings/data-export', DataExportController::class)
+        ->middleware('throttle:6,1')->name('profile.dataExport');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

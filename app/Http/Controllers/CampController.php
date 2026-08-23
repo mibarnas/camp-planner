@@ -153,10 +153,16 @@ class CampController extends Controller
             return $camp;
         });
 
-        return to_route('camps.show', $camp)->with('toast', [
+        // Inertia's own flash channel (not the plain session one) is what the
+        // client actually listens to, and it is never persisted into history
+        // state — so the onboarding modal fires exactly once, for the creator.
+        Inertia::flash('camp_onboarding', true);
+        Inertia::flash('toast', [
             'type' => 'success',
             'message' => __('Camp created.'),
         ]);
+
+        return to_route('camps.show', $camp);
     }
 
     /**
@@ -270,7 +276,7 @@ class CampController extends Controller
             return [
                 'id' => $day->id,
                 'date' => $day->date->toDateString(),
-                'weekday' => Weekdays::sk($day->date->dayOfWeekIso),
+                'weekday' => Weekdays::for($day->date->dayOfWeekIso),
                 'label' => $day->date->format('j.n.'),
                 'is_trip' => $day->is_trip,
                 'trip_name' => $day->trip_name,

@@ -11,7 +11,10 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
+import { useI18n } from '@/i18n';
 import type { Passkey } from '@/types/auth';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     passkey: Passkey;
@@ -50,10 +53,18 @@ const handleDelete = () => {
                     </span>
                 </div>
                 <p class="text-sm text-muted-foreground">
-                    Added {{ passkey.created_at_diff }}
+                    {{
+                        t('settings.passkeys.added', {
+                            when: passkey.created_at_diff,
+                        })
+                    }}
                     <template v-if="passkey.last_used_at_diff">
                         <span class="mx-1 text-muted-foreground/50">/</span>
-                        Last used {{ passkey.last_used_at_diff }}
+                        {{
+                            t('settings.passkeys.lastUsed', {
+                                when: passkey.last_used_at_diff,
+                            })
+                        }}
                     </template>
                 </p>
             </div>
@@ -67,26 +78,37 @@ const handleDelete = () => {
                     class="text-destructive hover:bg-destructive/10 hover:text-destructive"
                 >
                     <Trash2 class="h-4 w-4" />
-                    <span class="sr-only">Odstrániť</span>
+                    <span class="sr-only">{{ t('common.remove') }}</span>
                 </Button>
             </DialogTrigger>
 
             <DialogContent>
-                <DialogTitle>Odstrániť prístupový kľúč</DialogTitle>
+                <DialogTitle>{{
+                    t('settings.passkeys.removeTitle')
+                }}</DialogTitle>
                 <DialogDescription>
-                    Are you sure you want to remove the "{{ passkey.name }}"
-                    passkey? You will no longer be able to use it to sign in.
+                    {{
+                        t('settings.passkeys.removeBody', {
+                            name: passkey.name,
+                        })
+                    }}
                 </DialogDescription>
                 <DialogFooter class="gap-2">
                     <DialogClose as-child>
-                        <Button variant="secondary">Zrušiť</Button>
+                        <Button variant="secondary">{{
+                            t('common.cancel')
+                        }}</Button>
                     </DialogClose>
                     <Button
                         variant="destructive"
                         :disabled="isDeleting"
                         @click="handleDelete"
                     >
-                        {{ isDeleting ? 'Odstraňujem…' : 'Odstrániť kľúč' }}
+                        {{
+                            isDeleting
+                                ? t('settings.passkeys.removing')
+                                : t('settings.passkeys.remove')
+                        }}
                     </Button>
                 </DialogFooter>
             </DialogContent>

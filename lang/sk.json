@@ -82,5 +82,13 @@
     "Question archived — its answers are kept.": "Otázka skrytá — odpovede ostávajú.",
     "A question that has answers cannot change its scope.": "Otázke, na ktorú už niekto odpovedal, sa nedá zmeniť rozsah.",
     "Points saved.": "Body uložené.",
-    "This activity is not scored.": "Táto aktivita sa neboduje."
+    "This activity is not scored.": "Táto aktivita sa neboduje.",
+    "You must agree to the Terms of Use and the Privacy Policy.": "Musíš súhlasiť s Podmienkami používania a Zásadami ochrany osobných údajov.",
+    "weekday.monday": "pondelok",
+    "weekday.tuesday": "utorok",
+    "weekday.wednesday": "streda",
+    "weekday.thursday": "štvrtok",
+    "weekday.friday": "piatok",
+    "weekday.saturday": "sobota",
+    "weekday.sunday": "nedeľa"
 }

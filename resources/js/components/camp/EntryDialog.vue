@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { router, useForm } from '@inertiajs/vue3';
-import { BookmarkPlus, Check, Clock, Coffee, PenLine, Search, Trash2 } from '@lucide/vue';
+import {
+    BookmarkPlus,
+    Check,
+    Clock,
+    Coffee,
+    PenLine,
+    Search,
+    Trash2,
+} from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
@@ -15,13 +23,24 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useI18n } from '@/i18n';
 import { categoryById, colorStyle } from '@/lib/campColors';
 import { matchLeader } from '@/lib/leaders';
 import { durationLabel, minToTime, timeToMin } from '@/lib/timeline';
 import { store as storeActivity } from '@/routes/activities';
-import { destroy as destroyEntry, store as storeEntry, update as updateEntry } from '@/routes/entries';
+import {
+    destroy as destroyEntry,
+    store as storeEntry,
+    update as updateEntry,
+} from '@/routes/entries';
 import type {
     Activity,
     ActivityCategory,
@@ -33,6 +52,8 @@ import type {
     PointsMode,
     ProgramEntry,
 } from '@/types/camp';
+
+const { t } = useI18n();
 
 const props = withDefaults(
     defineProps<{
@@ -50,32 +71,36 @@ const props = withDefaults(
 );
 
 const POINTS_OPTIONS: { value: PointsMode; label: string; hint: string }[] = [
-    { value: 'none', label: 'Bez bodovania', hint: '' },
-    { value: 'raw', label: 'Priame body', hint: 'Zapísané čísla sú priamo body.' },
+    { value: 'none', label: t('points.mode.none'), hint: '' },
+    {
+        value: 'raw',
+        label: t('points.mode.raw'),
+        hint: t('points.mode.rawHint'),
+    },
     {
         value: 'placement',
-        label: 'Podľa poradia',
-        hint: 'Zapísané čísla určia poradie — najlepšia skupina získa najviac bodov.',
+        label: t('points.mode.placement'),
+        hint: t('points.mode.placementHint'),
     },
 ];
 
 const STATUS_OPTIONS: { value: EntryStatus; label: string }[] = [
-    { value: 'todo', label: 'Treba doriešiť' },
-    { value: 'none', label: 'Rozpracované' },
-    { value: 'done', label: 'Hotové' },
+    { value: 'todo', label: t('entry.status.todo') },
+    { value: 'none', label: t('entry.status.none') },
+    { value: 'done', label: t('entry.status.done') },
 ];
 
 // One tap fills in the things that recur on almost every camp day.
 const SIMPLE_PRESETS: { label: string; duration: number }[] = [
-    { label: 'Raňajky', duration: 45 },
-    { label: 'Obed', duration: 60 },
-    { label: 'Olovrant', duration: 30 },
-    { label: 'Večera', duration: 60 },
-    { label: 'Odpočinok', duration: 60 },
-    { label: 'Hygiena', duration: 30 },
-    { label: 'Presun', duration: 60 },
-    { label: 'Balenie', duration: 30 },
-    { label: 'Voľno', duration: 60 },
+    { label: t('entry.preset.breakfast'), duration: 45 },
+    { label: t('entry.preset.lunch'), duration: 60 },
+    { label: t('entry.preset.snack'), duration: 30 },
+    { label: t('entry.preset.dinner'), duration: 60 },
+    { label: t('entry.preset.rest'), duration: 60 },
+    { label: t('entry.preset.hygiene'), duration: 30 },
+    { label: t('entry.preset.transfer'), duration: 60 },
+    { label: t('entry.preset.packing'), duration: 30 },
+    { label: t('entry.preset.free'), duration: 60 },
 ];
 
 const emit = defineEmits<{ 'update:open': [value: boolean] }>();
@@ -97,7 +122,9 @@ const form = useForm({
 
 // Typing a name stays free — this only tells the user when what they typed
 // names someone the camp already knows.
-const matchedLeader = computed(() => matchLeader(form.responsible, props.leaders));
+const matchedLeader = computed(() =>
+    matchLeader(form.responsible, props.leaders),
+);
 const pointsHint = computed(
     () => POINTS_OPTIONS.find((o) => o.value === form.points_mode)?.hint ?? '',
 );
@@ -118,7 +145,9 @@ const selectedActivity = computed(
 );
 
 const presentCategories = computed(() =>
-    props.categories.filter((c) => props.activities.some((a) => a.category_id === c.id)),
+    props.categories.filter((c) =>
+        props.activities.some((a) => a.category_id === c.id),
+    ),
 );
 
 const filteredActivities = computed(() => {
@@ -126,21 +155,26 @@ const filteredActivities = computed(() => {
 
     return props.activities.filter(
         (a) =>
-            (categoryFilter.value === 'all' || a.category_id === categoryFilter.value) &&
-            (!q || a.name.toLowerCase().includes(q) || (a.description ?? '').toLowerCase().includes(q)),
+            (categoryFilter.value === 'all' ||
+                a.category_id === categoryFilter.value) &&
+            (!q ||
+                a.name.toLowerCase().includes(q) ||
+                (a.description ?? '').toLowerCase().includes(q)),
     );
 });
 
 const endTime = computed(() =>
-    minToTime(timeToMin(form.start_time || '00:00') + Number(form.duration || 0)),
+    minToTime(
+        timeToMin(form.start_time || '00:00') + Number(form.duration || 0),
+    ),
 );
 
 watch(
     () => props.open,
     (open) => {
         if (!open || !props.day) {
-return;
-}
+            return;
+        }
 
         const e = props.entry;
         form.clearErrors();
@@ -185,8 +219,8 @@ function pickActivity(activity: Activity) {
     form.materials = activity.materials ?? '';
 
     if (!props.entry) {
-form.duration = activity.default_duration;
-}
+        form.duration = activity.default_duration;
+    }
 
     pickerExpanded.value = false;
 }
@@ -195,8 +229,8 @@ function switchMode(next: Mode) {
     mode.value = next;
 
     if (next !== 'library') {
-form.activity_id = null;
-}
+        form.activity_id = null;
+    }
 
     form.kind = next === 'simple' ? 'simple' : 'detailed';
     pickerExpanded.value = !form.activity_id;
@@ -241,12 +275,16 @@ function remove() {
 const savingToLibrary = ref(false);
 const savedToLibrary = ref(false);
 const canSaveToLibrary = computed(
-    () => !!props.library && !isSimple.value && !form.activity_id && form.title.trim().length > 0,
+    () =>
+        !!props.library &&
+        !isSimple.value &&
+        !form.activity_id &&
+        form.title.trim().length > 0,
 );
 function saveToLibrary() {
     if (!props.library || !canSaveToLibrary.value) {
-return;
-}
+        return;
+    }
 
     router.post(
         storeActivity().url,
@@ -274,8 +312,8 @@ watch(
     () => props.open,
     (open) => {
         if (open) {
-savedToLibrary.value = false;
-}
+            savedToLibrary.value = false;
+        }
     },
 );
 </script>
@@ -285,10 +323,14 @@ savedToLibrary.value = false;
         <DialogContent class="sm:max-w-2xl">
             <DialogHeader>
                 <DialogTitle>
-                    {{ entry ? 'Upraviť aktivitu' : 'Nová aktivita' }}
-                    <span class="text-muted-foreground">· {{ day?.weekday }} {{ day?.label }}</span>
+                    {{ entry ? t('activities.edit') : t('activities.new') }}
+                    <span class="text-muted-foreground"
+                        >· {{ day?.weekday }} {{ day?.label }}</span
+                    >
                 </DialogTitle>
-                <DialogDescription>{{ form.start_time }}–{{ endTime }}</DialogDescription>
+                <DialogDescription
+                    >{{ form.start_time }}–{{ endTime }}</DialogDescription
+                >
             </DialogHeader>
 
             <div class="grid gap-4 px-1">
@@ -297,38 +339,57 @@ savedToLibrary.value = false;
                     <button
                         type="button"
                         class="truncate rounded-md px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm"
-                        :class="mode === 'library' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                        :class="
+                            mode === 'library'
+                                ? 'bg-background shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
                         @click="switchMode('library')"
                     >
-                        Z knižnice
+                        {{ t('entry.tab.library') }}
                     </button>
                     <button
                         type="button"
                         class="truncate rounded-md px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm"
-                        :class="mode === 'custom' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                        :class="
+                            mode === 'custom'
+                                ? 'bg-background shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
                         @click="switchMode('custom')"
                     >
                         <PenLine class="mr-1 inline size-3.5" />
-                        <span class="sm:hidden">Vlastná</span>
-                        <span class="hidden sm:inline">Vlastná aktivita</span>
+                        <span class="sm:hidden">{{
+                            t('entry.tab.customShort')
+                        }}</span>
+                        <span class="hidden sm:inline">{{
+                            t('entry.tab.custom')
+                        }}</span>
                     </button>
                     <button
                         type="button"
                         class="truncate rounded-md px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm"
-                        :class="mode === 'simple' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                        :class="
+                            mode === 'simple'
+                                ? 'bg-background shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
                         @click="switchMode('simple')"
                     >
                         <Coffee class="mr-1 inline size-3.5" />
-                        <span class="sm:hidden">Blok</span>
-                        <span class="hidden sm:inline">Jednoduchý blok</span>
+                        <span class="sm:hidden">{{
+                            t('entry.tab.simpleShort')
+                        }}</span>
+                        <span class="hidden sm:inline">{{
+                            t('entry.tab.simple')
+                        }}</span>
                     </button>
                 </div>
 
                 <!-- Simple block: a label on the timeline, nothing more -->
                 <div v-if="isSimple" class="grid gap-2">
                     <p class="text-xs text-muted-foreground">
-                        Pre veci mimo programu — jedlo, presun, odpočinok. Nemá scenár ani materiál
-                        a nezaraďuje sa do hodnotenia dňa.
+                        {{ t('entry.simpleHint') }}
                     </p>
                     <div class="flex flex-wrap gap-1.5">
                         <button
@@ -336,7 +397,11 @@ savedToLibrary.value = false;
                             :key="preset.label"
                             type="button"
                             class="rounded-full border px-2.5 py-0.5 text-xs transition-colors"
-                            :class="form.title === preset.label ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'"
+                            :class="
+                                form.title === preset.label
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'hover:bg-accent'
+                            "
                             @click="applyPreset(preset)"
                         >
                             {{ preset.label }}
@@ -351,48 +416,104 @@ savedToLibrary.value = false;
                         v-if="!showPicker"
                         class="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2.5"
                     >
-                        <span class="size-2.5 shrink-0 rounded-full" :class="colorStyle(selectedActivity?.color ?? 'emerald').dot" />
+                        <span
+                            class="size-2.5 shrink-0 rounded-full"
+                            :class="
+                                colorStyle(selectedActivity?.color ?? 'emerald')
+                                    .dot
+                            "
+                        />
                         <span class="min-w-0 flex-1">
-                            <span class="block truncate text-sm font-medium">{{ selectedActivity?.name ?? form.title }}</span>
-                            <span class="flex items-center gap-2 text-[11px] text-muted-foreground">
+                            <span class="block truncate text-sm font-medium">{{
+                                selectedActivity?.name ?? form.title
+                            }}</span>
+                            <span
+                                class="flex items-center gap-2 text-[11px] text-muted-foreground"
+                            >
                                 <Badge
-                                    v-if="selectedActivity && categoryById(categories, selectedActivity.category_id)"
+                                    v-if="
+                                        selectedActivity &&
+                                        categoryById(
+                                            categories,
+                                            selectedActivity.category_id,
+                                        )
+                                    "
                                     variant="secondary"
                                     class="px-1.5 py-0 text-[10px]"
-                                    :class="colorStyle(categoryById(categories, selectedActivity.category_id)!.color).chip"
+                                    :class="
+                                        colorStyle(
+                                            categoryById(
+                                                categories,
+                                                selectedActivity.category_id,
+                                            )!.color,
+                                        ).chip
+                                    "
                                 >
-                                    {{ categoryById(categories, selectedActivity.category_id)!.name }}
+                                    {{
+                                        categoryById(
+                                            categories,
+                                            selectedActivity.category_id,
+                                        )!.name
+                                    }}
                                 </Badge>
                                 <span class="flex items-center gap-0.5">
-                                    <Clock class="size-3" /> {{ durationLabel(Number(form.duration) || 0) }}
+                                    <Clock class="size-3" />
+                                    {{
+                                        durationLabel(
+                                            Number(form.duration) || 0,
+                                        )
+                                    }}
                                 </span>
                             </span>
                         </span>
-                        <Button type="button" variant="outline" size="sm" @click="pickerExpanded = true">Zmeniť</Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            @click="pickerExpanded = true"
+                            >{{ t('common.change') }}</Button
+                        >
                     </div>
 
                     <div v-else class="relative">
-                        <Search class="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input v-model="search" placeholder="Hľadať aktivitu…" class="pl-8" />
+                        <Search
+                            class="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                        />
+                        <Input
+                            v-model="search"
+                            :placeholder="t('entry.searchPlaceholder')"
+                            class="pl-8"
+                        />
                     </div>
                     <div v-if="showPicker" class="flex flex-wrap gap-1.5">
                         <button
                             type="button"
                             class="rounded-full border px-2.5 py-0.5 text-xs transition-colors"
-                            :class="categoryFilter === 'all' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'"
+                            :class="
+                                categoryFilter === 'all'
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'hover:bg-accent'
+                            "
                             @click="categoryFilter = 'all'"
                         >
-                            Všetky
+                            {{ t('common.all') }}
                         </button>
                         <button
                             v-for="c in presentCategories"
                             :key="c.id"
                             type="button"
                             class="flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors"
-                            :class="categoryFilter === c.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'"
+                            :class="
+                                categoryFilter === c.id
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'hover:bg-accent'
+                            "
                             @click="categoryFilter = c.id"
                         >
-                            <span class="size-2 rounded-full" :class="colorStyle(c.color).dot" />
+                            <span
+                                class="size-2 rounded-full"
+                                :class="colorStyle(c.color).dot"
+                            />
                             {{ c.name }}
                         </button>
                     </div>
@@ -406,7 +527,11 @@ savedToLibrary.value = false;
                             :key="a.id"
                             type="button"
                             class="relative flex flex-col gap-1 rounded-lg border p-2.5 text-left transition-all hover:border-primary/50"
-                            :class="form.activity_id === a.id ? 'border-primary ring-2 ring-primary/30' : ''"
+                            :class="
+                                form.activity_id === a.id
+                                    ? 'border-primary ring-2 ring-primary/30'
+                                    : ''
+                            "
                             @click="pickActivity(a)"
                         >
                             <span
@@ -416,29 +541,55 @@ savedToLibrary.value = false;
                                 <Check class="size-3" />
                             </span>
                             <span class="flex items-center gap-1.5 pr-5">
-                                <span class="size-2.5 shrink-0 rounded-full" :class="colorStyle(a.color).dot" />
-                                <span class="truncate text-sm font-medium">{{ a.name }}</span>
+                                <span
+                                    class="size-2.5 shrink-0 rounded-full"
+                                    :class="colorStyle(a.color).dot"
+                                />
+                                <span class="truncate text-sm font-medium">{{
+                                    a.name
+                                }}</span>
                             </span>
                             <span class="flex items-center gap-2">
                                 <Badge
-                                    v-if="categoryById(categories, a.category_id)"
+                                    v-if="
+                                        categoryById(categories, a.category_id)
+                                    "
                                     variant="secondary"
                                     class="px-1.5 py-0 text-[10px]"
-                                    :class="colorStyle(categoryById(categories, a.category_id)!.color).chip"
+                                    :class="
+                                        colorStyle(
+                                            categoryById(
+                                                categories,
+                                                a.category_id,
+                                            )!.color,
+                                        ).chip
+                                    "
                                 >
-                                    {{ categoryById(categories, a.category_id)!.name }}
+                                    {{
+                                        categoryById(categories, a.category_id)!
+                                            .name
+                                    }}
                                 </Badge>
-                                <span class="flex items-center gap-0.5 text-[11px] text-muted-foreground">
-                                    <Clock class="size-3" /> {{ durationLabel(a.default_duration) }}
+                                <span
+                                    class="flex items-center gap-0.5 text-[11px] text-muted-foreground"
+                                >
+                                    <Clock class="size-3" />
+                                    {{ durationLabel(a.default_duration) }}
                                 </span>
                             </span>
-                            <span v-if="a.description" class="line-clamp-2 text-xs text-muted-foreground">
+                            <span
+                                v-if="a.description"
+                                class="line-clamp-2 text-xs text-muted-foreground"
+                            >
                                 {{ a.description }}
                             </span>
                         </button>
                     </div>
-                    <p v-else-if="showPicker" class="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                        Žiadne aktivity. Skús iné hľadanie alebo vytvor vlastnú aktivitu.
+                    <p
+                        v-else-if="showPicker"
+                        class="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground"
+                    >
+                        {{ t('entry.noActivities') }}
                     </p>
                 </div>
 
@@ -446,88 +597,152 @@ savedToLibrary.value = false;
                 <form class="grid gap-4" @submit.prevent="submit">
                     <div class="grid gap-4 sm:grid-cols-2">
                         <div class="grid gap-2">
-                            <Label for="entry-start">Začiatok</Label>
-                            <Input id="entry-start" v-model="form.start_time" type="time" step="300" required />
+                            <Label for="entry-start">{{
+                                t('camps.field.start')
+                            }}</Label>
+                            <Input
+                                id="entry-start"
+                                v-model="form.start_time"
+                                type="time"
+                                step="300"
+                                required
+                            />
                             <InputError :message="form.errors.start_time" />
                         </div>
                         <div class="grid gap-2">
-                            <Label for="entry-duration">Dĺžka (min) — koniec {{ endTime }}</Label>
-                            <Input id="entry-duration" v-model="form.duration" type="number" min="5" max="1440" step="5" required />
+                            <Label for="entry-duration">{{
+                                t('entry.durationLabel', { end: endTime })
+                            }}</Label>
+                            <Input
+                                id="entry-duration"
+                                v-model="form.duration"
+                                type="number"
+                                min="5"
+                                max="1440"
+                                step="5"
+                                required
+                            />
                             <InputError :message="form.errors.duration" />
                         </div>
                     </div>
 
                     <div class="grid gap-2">
-                        <Label for="entry-title">Názov</Label>
+                        <Label for="entry-title">{{ t('common.name') }}</Label>
                         <Input
                             id="entry-title"
                             v-model="form.title"
-                            :placeholder="isSimple ? 'Napr. Presun do Tatier' : 'Napr. Zoznamovačky'"
+                            :placeholder="
+                                isSimple
+                                    ? t('entry.titlePlaceholderSimple')
+                                    : t('entry.titlePlaceholder')
+                            "
                         />
                         <InputError :message="form.errors.title" />
                     </div>
 
                     <div v-if="!isSimple" class="grid gap-2">
-                        <Label for="entry-desc">Program / scenár</Label>
-                        <Textarea id="entry-desc" v-model="form.description" class="min-h-24" />
+                        <Label for="entry-desc">{{ t('entry.script') }}</Label>
+                        <Textarea
+                            id="entry-desc"
+                            v-model="form.description"
+                            class="min-h-24"
+                        />
                         <InputError :message="form.errors.description" />
                     </div>
 
                     <div v-if="!isSimple" class="grid gap-4 sm:grid-cols-2">
                         <div class="grid gap-2">
-                            <Label for="entry-resp">Zodpovedný</Label>
+                            <Label for="entry-resp">{{
+                                t('entry.responsible')
+                            }}</Label>
                             <div class="relative">
                                 <Input
                                     id="entry-resp"
                                     v-model="form.responsible"
                                     list="entry-resp-leaders"
-                                    placeholder="Meno animátora"
+                                    :placeholder="
+                                        t('entry.responsiblePlaceholder')
+                                    "
                                     :class="matchedLeader ? 'pr-8' : ''"
                                 />
-                                <span v-if="matchedLeader" class="absolute inset-y-0 right-2 flex items-center" title="Vedúci tábora">
+                                <span
+                                    v-if="matchedLeader"
+                                    class="absolute inset-y-0 right-2 flex items-center"
+                                    :title="t('camps.leaders.title')"
+                                >
                                     <span
                                         v-if="matchedLeader.color"
                                         class="mr-1 size-2 rounded-full"
-                                        :class="colorStyle(matchedLeader.color).dot"
+                                        :class="
+                                            colorStyle(matchedLeader.color).dot
+                                        "
                                     />
-                                    <Check class="size-4 text-emerald-600 dark:text-emerald-400" />
+                                    <Check
+                                        class="size-4 text-emerald-600 dark:text-emerald-400"
+                                    />
                                 </span>
                             </div>
                             <datalist id="entry-resp-leaders">
-                                <option v-for="leader in leaders" :key="leader.id" :value="leader.name" />
+                                <option
+                                    v-for="leader in leaders"
+                                    :key="leader.id"
+                                    :value="leader.name"
+                                />
                             </datalist>
                             <InputError :message="form.errors.responsible" />
                         </div>
                         <div class="grid gap-2">
-                            <Label for="entry-mat">Materiál</Label>
+                            <Label for="entry-mat">{{
+                                t('entry.materials')
+                            }}</Label>
                             <Input id="entry-mat" v-model="form.materials" />
                             <InputError :message="form.errors.materials" />
                         </div>
                     </div>
 
                     <div v-if="!isSimple" class="grid gap-2">
-                        <Label>Bodovanie skupín</Label>
-                        <Select :model-value="form.points_mode" @update:model-value="form.points_mode = $event as PointsMode">
+                        <Label>{{ t('entry.groupScoring') }}</Label>
+                        <Select
+                            :model-value="form.points_mode"
+                            @update:model-value="
+                                form.points_mode = $event as PointsMode
+                            "
+                        >
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem v-for="option in POINTS_OPTIONS" :key="option.value" :value="option.value">
+                                <SelectItem
+                                    v-for="option in POINTS_OPTIONS"
+                                    :key="option.value"
+                                    :value="option.value"
+                                >
                                     {{ option.label }}
                                 </SelectItem>
                             </SelectContent>
                         </Select>
-                        <p v-if="pointsHint" class="text-xs text-muted-foreground">{{ pointsHint }}</p>
+                        <p
+                            v-if="pointsHint"
+                            class="text-xs text-muted-foreground"
+                        >
+                            {{ pointsHint }}
+                        </p>
                         <InputError :message="form.errors.points_mode" />
                     </div>
 
                     <div v-if="entry" class="grid gap-2">
                         <Label>Stav</Label>
-                        <div class="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
+                        <div
+                            class="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1"
+                        >
                             <button
                                 v-for="option in STATUS_OPTIONS"
                                 :key="option.value"
                                 type="button"
                                 class="rounded-md px-2 py-1.5 text-sm font-medium transition-colors"
-                                :class="form.status === option.value ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                                :class="
+                                    form.status === option.value
+                                        ? 'bg-background shadow-sm'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                "
                                 @click="form.status = option.value"
                             >
                                 {{ option.label }}
@@ -537,8 +752,13 @@ savedToLibrary.value = false;
                     </div>
 
                     <div class="grid gap-2">
-                        <Label for="entry-notes">Poznámky</Label>
-                        <Textarea id="entry-notes" v-model="form.notes" class="min-h-16" placeholder="Interné poznámky k tejto aktivite v programe…" />
+                        <Label for="entry-notes">{{ t('entry.notes') }}</Label>
+                        <Textarea
+                            id="entry-notes"
+                            v-model="form.notes"
+                            class="min-h-16"
+                            :placeholder="t('entry.notesPlaceholder')"
+                        />
                         <InputError :message="form.errors.notes" />
                     </div>
 
@@ -551,24 +771,52 @@ savedToLibrary.value = false;
                         :disabled="savingToLibrary || savedToLibrary"
                         @click="saveToLibrary"
                     >
-                        <component :is="savedToLibrary ? Check : BookmarkPlus" />
-                        {{ savedToLibrary ? 'Uložené do databázy' : 'Uložiť do databázy aktivít' }}
+                        <component
+                            :is="savedToLibrary ? Check : BookmarkPlus"
+                        />
+                        {{
+                            savedToLibrary
+                                ? t('entry.savedToLibrary')
+                                : t('entry.saveToLibrary')
+                        }}
                     </Button>
                 </form>
             </div>
 
-            <p v-if="!editable" class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-200">
-                Program je uzamknutý — zmeny sa nedajú uložiť, kým ho vlastník neodomkne.
+            <p
+                v-if="!editable"
+                class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-200"
+            >
+                {{ t('entry.lockedHint') }}
             </p>
 
             <DialogFooter class="sm:justify-between">
-                <Button v-if="entry && editable" type="button" variant="ghost" class="text-destructive" @click="remove">
-                    <Trash2 /> Odstrániť
+                <Button
+                    v-if="entry && editable"
+                    type="button"
+                    variant="ghost"
+                    class="text-destructive"
+                    @click="remove"
+                >
+                    <Trash2 /> {{ t('common.remove') }}
                 </Button>
                 <span v-else />
                 <div class="flex gap-2 *:flex-1 sm:*:flex-initial">
-                    <Button type="button" variant="outline" @click="emit('update:open', false)">Zavrieť</Button>
-                    <Button v-if="editable" type="button" :disabled="form.processing" @click="submit">Uložiť</Button>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        @click="emit('update:open', false)"
+                    >
+                        {{ t('common.close') }}
+                    </Button>
+                    <Button
+                        v-if="editable"
+                        type="button"
+                        :disabled="form.processing"
+                        @click="submit"
+                    >
+                        {{ t('common.save') }}
+                    </Button>
                 </div>
             </DialogFooter>
         </DialogContent>

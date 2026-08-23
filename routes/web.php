@@ -15,7 +15,9 @@ use App\Http\Controllers\GroupController;
 use App\Http\Controllers\GroupTypeController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\LeaderboardController;
+use App\Http\Controllers\LegalController;
 use App\Http\Controllers\LibraryVersionController;
+use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\PlanVersionController;
 use App\Http\Controllers\ProgramEntryController;
 use App\Http\Controllers\SummaryController;
@@ -24,6 +26,14 @@ use App\Http\Controllers\TimeSlotOverrideController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
+
+// Legal pages are public on purpose: someone whose data a camp organiser
+// entered must be able to read the privacy policy without an account.
+Route::get('privacy', [LegalController::class, 'privacy'])->name('legal.privacy');
+Route::get('terms', [LegalController::class, 'terms'])->name('legal.terms');
+
+// Language switcher. A preference cookie, so it works for guests too.
+Route::put('locale', [LocaleController::class, 'update'])->name('locale.update');
 
 // Public share/invite landing page (works for guests and logged-in users).
 Route::get('invitations/{token}', [InvitationController::class, 'show'])->name('invitations.show');

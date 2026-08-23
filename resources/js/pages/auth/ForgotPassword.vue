@@ -1,19 +1,26 @@
 <script setup lang="ts">
-import { Form, Head } from '@inertiajs/vue3';
+import { Form, Head, setLayoutProps } from '@inertiajs/vue3';
+import { watchEffect } from 'vue';
 import InputError from '@/components/InputError.vue';
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import { useI18n } from '@/i18n';
 import { login } from '@/routes';
 import { email } from '@/routes/password';
 
-defineOptions({
-    layout: {
-        title: 'Zabudnuté heslo',
-        description: 'Zadaj e-mail a pošleme ti odkaz na obnovu hesla',
-    },
+const { t } = useI18n();
+
+// The layout props carry translated text, so they have to be set during
+// render rather than in defineOptions(), which is hoisted out of setup()
+// and would freeze the language at module-evaluation time.
+watchEffect(() => {
+    setLayoutProps({
+        title: t('auth.forgot.title'),
+        description: t('auth.forgot.description'),
+    });
 });
 
 defineProps<{
@@ -22,7 +29,7 @@ defineProps<{
 </script>
 
 <template>
-    <Head title="Zabudnuté heslo" />
+    <Head :title="t('auth.forgot.title')" />
 
     <div
         v-if="status"
@@ -34,14 +41,14 @@ defineProps<{
     <div class="space-y-6">
         <Form v-bind="email.form()" v-slot="{ errors, processing }">
             <div class="grid gap-2">
-                <Label for="email">E-mailová adresa</Label>
+                <Label for="email">{{ t('auth.field.email') }}</Label>
                 <Input
                     id="email"
                     type="email"
                     name="email"
                     autocomplete="off"
                     autofocus
-                    placeholder="email@priklad.sk"
+                    :placeholder="t('auth.placeholder.email')"
                 />
                 <InputError :message="errors.email" />
             </div>
@@ -53,14 +60,14 @@ defineProps<{
                     data-test="email-password-reset-link-button"
                 >
                     <Spinner v-if="processing" />
-                    Poslať odkaz na obnovu hesla
+                    {{ t('auth.forgot.submit') }}
                 </Button>
             </div>
         </Form>
 
         <div class="space-x-1 text-center text-sm text-muted-foreground">
-            <span>Alebo sa vráť na</span>
-            <TextLink :href="login()">prihlásenie</TextLink>
+            <span>{{ t('auth.forgot.backPrefix') }}</span>
+            <TextLink :href="login()">{{ t('auth.forgot.backLink') }}</TextLink>
         </div>
     </div>
 </template>

@@ -12,6 +12,7 @@ import {
     Trophy,
 } from '@lucide/vue';
 import { computed, ref, watch, watchEffect } from 'vue';
+import CampOnboardingDialog from '@/components/camp/CampOnboardingDialog.vue';
 import DayDialog from '@/components/camp/DayDialog.vue';
 import DayReviewDialog from '@/components/camp/DayReviewDialog.vue';
 import EntryDialog from '@/components/camp/EntryDialog.vue';
@@ -30,12 +31,27 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useI18n } from '@/i18n';
 import { colorStyle } from '@/lib/campColors';
 import { campIcon } from '@/lib/campIcons';
+import { pendingCampOnboarding } from '@/lib/campOnboarding';
 import { index as campsIndex } from '@/routes/camps';
-import { duplicate as duplicateCamp, fillNameDays, leaderboard, lock as lockCamp, unlock as unlockCamp } from '@/routes/camps';
-import { bulkDestroy, bulkUpdate, setStatus as setEntryStatus } from '@/routes/entries';
-import { destroy as destroyOverride, upsert as upsertOverride } from '@/routes/slotOverrides';
+import {
+    duplicate as duplicateCamp,
+    fillNameDays,
+    leaderboard,
+    lock as lockCamp,
+    unlock as unlockCamp,
+} from '@/routes/camps';
+import {
+    bulkDestroy,
+    bulkUpdate,
+    setStatus as setEntryStatus,
+} from '@/routes/entries';
+import {
+    destroy as destroyOverride,
+    upsert as upsertOverride,
+} from '@/routes/slotOverrides';
 import type {
     Activity,
     ActivityCategory,
@@ -51,6 +67,8 @@ import type {
     SlotOverridePatch,
     TimeSlot,
 } from '@/types/camp';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     camp: Camp;
@@ -69,7 +87,7 @@ const props = defineProps<{
 watchEffect(() => {
     setLayoutProps({
         breadcrumbs: [
-            { title: 'Tábory', href: campsIndex().url },
+            { title: t('nav.camps'), href: campsIndex().url },
             { title: props.camp.name, href: '#' },
         ],
     });
@@ -137,16 +155,28 @@ function onBulkResponsible(ids: number[], responsible: string) {
 }
 
 // --- Per-day block overrides (the timeline already updated localDays) ---
-function onSlotOverride(day: CampDay, slot: EffectiveSlot, patch: SlotOverridePatch) {
-    router.put(upsertOverride({ day: day.id, slot: slot.id }).url, patch, scheduleWrite);
+function onSlotOverride(
+    day: CampDay,
+    slot: EffectiveSlot,
+    patch: SlotOverridePatch,
+) {
+    router.put(
+        upsertOverride({ day: day.id, slot: slot.id }).url,
+        patch,
+        scheduleWrite,
+    );
 }
 function onSlotOverrideReset(day: CampDay, slot: EffectiveSlot) {
-    router.delete(destroyOverride({ day: day.id, slot: slot.id }).url, scheduleWrite);
+    router.delete(
+        destroyOverride({ day: day.id, slot: slot.id }).url,
+        scheduleWrite,
+    );
 }
 
 // --- Editing on touch devices is opt-in, and the owner can freeze it for all ---
 const isCoarsePointer =
-    typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+    typeof window !== 'undefined' &&
+    window.matchMedia('(pointer: coarse)').matches;
 const mobileEdit = ref(false);
 const canEditSchedule = computed(
     () => !props.camp.schedule_locked && (!isCoarsePointer || mobileEdit.value),
@@ -159,7 +189,7 @@ function toggleLock() {
         return;
     }
 
-    if (!confirm('Zamknúť program? Nikto (ani ty) ho nebude môcť presúvať, kým ho neodomkneš.')) {
+    if (!confirm(t('camps.show.confirmLock'))) {
         return;
     }
 
@@ -184,7 +214,11 @@ function onReview(day: CampDay) {
 // Suggest reviewing the latest day that has already happened but isn't reviewed yet.
 const todayIso = new Date().toISOString().slice(0, 10);
 const dayToReview = computed(() =>
-    [...localDays.value].reverse().find((d) => d.date <= todayIso && d.entries.length > 0 && !d.my_review),
+    [...localDays.value]
+        .reverse()
+        .find(
+            (d) => d.date <= todayIso && d.entries.length > 0 && !d.my_review,
+        ),
 );
 function capitalize(v: string): string {
     return v.charAt(0).toUpperCase() + v.slice(1);
@@ -221,6 +255,20 @@ const entryNeedingPoints = computed(() => {
 // --- Other dialogs ---
 const versionsOpen = ref(false);
 
+// --- Onboarding, shown once right after this camp was created ---
+const onboardingOpen = ref(false);
+watch(
+    pendingCampOnboarding,
+    (pending) => {
+        if (pending) {
+            // Consume it, so navigating back here never reopens the modal.
+            pendingCampOnboarding.value = false;
+            onboardingOpen.value = true;
+        }
+    },
+    { immediate: true },
+);
+
 // --- Fill name days from the Slovak calendar ---
 function fillNames() {
     router.post(fillNameDays(props.camp.id).url, {}, { preserveScroll: true });
@@ -238,7 +286,7 @@ const duplicateForm = useForm({
 function openDuplicate() {
     duplicateForm.clearErrors();
     duplicateForm.defaults({
-        name: `${props.camp.name} (kópia)`,
+        name: t('camps.show.copyName', { name: props.camp.name }),
         year: props.camp.year + 1,
         start_date: '',
         end_date: '',
@@ -261,36 +309,67 @@ function submitDuplicate() {
         <!-- Header -->
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="flex items-center gap-3">
-                <div class="flex size-12 shrink-0 items-center justify-center rounded-xl" :class="colorStyle(camp.color).chip">
+                <div
+                    class="flex size-12 shrink-0 items-center justify-center rounded-xl"
+                    :class="colorStyle(camp.color).chip"
+                >
                     <component :is="campIcon(camp.icon)" class="size-6" />
                 </div>
                 <div>
-                    <h1 class="text-2xl font-bold tracking-tight">{{ camp.name }}</h1>
+                    <h1 class="text-2xl font-bold tracking-tight">
+                        {{ camp.name }}
+                    </h1>
                     <p class="text-sm text-muted-foreground">
-                        {{ camp.year }} · {{ localDays.length }} dní · {{ membersCount }} vedúcich
-                        <span v-if="camp.location"> · <MapPin class="inline size-3.5" /> {{ camp.location }}</span>
+                        {{ camp.year }} ·
+                        {{ t('camps.index.days', { count: localDays.length }) }}
+                        ·
+                        {{
+                            t('camps.show.leaderCount', { count: membersCount })
+                        }}
+                        <span v-if="camp.location">
+                            · <MapPin class="inline size-3.5" />
+                            {{ camp.location }}</span
+                        >
                     </p>
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="sm" title="Doplniť meniny z kalendára" @click="fillNames">
-                    <CalendarHeart /> Doplniť meniny
+                <Button
+                    variant="outline"
+                    size="sm"
+                    :title="t('camps.show.fillNameDaysHint')"
+                    @click="fillNames"
+                >
+                    <CalendarHeart /> {{ t('camps.show.fillNameDays') }}
                 </Button>
                 <Button variant="outline" size="sm" @click="openDuplicate">
-                    <Copy /> Duplikovať
-                </Button>
-                <Button v-if="camp.is_owner" variant="outline" size="sm" @click="versionsOpen = true">
-                    <History /> Verzie plánu
+                    <Copy /> {{ t('common.duplicate') }}
                 </Button>
                 <Button
                     v-if="camp.is_owner"
                     variant="outline"
                     size="sm"
-                    :class="camp.schedule_locked ? 'border-amber-400 text-amber-700 dark:text-amber-300' : ''"
+                    @click="versionsOpen = true"
+                >
+                    <History /> {{ t('versions.plan.title') }}
+                </Button>
+                <Button
+                    v-if="camp.is_owner"
+                    variant="outline"
+                    size="sm"
+                    :class="
+                        camp.schedule_locked
+                            ? 'border-amber-400 text-amber-700 dark:text-amber-300'
+                            : ''
+                    "
                     @click="toggleLock"
                 >
                     <component :is="camp.schedule_locked ? LockOpen : Lock" />
-                    {{ camp.schedule_locked ? 'Odomknúť program' : 'Zamknúť program' }}
+                    {{
+                        camp.schedule_locked
+                            ? t('camps.show.unlock')
+                            : t('camps.show.lock')
+                    }}
                 </Button>
             </div>
         </div>
@@ -302,9 +381,15 @@ function submitDuplicate() {
         >
             <Star class="size-5 fill-amber-400 text-amber-500" />
             <p class="text-sm">
-                <strong>{{ capitalize(dayToReview.weekday) }} {{ dayToReview.label }}</strong> ešte nemá tvoje zhodnotenie.
+                <strong
+                    >{{ capitalize(dayToReview.weekday) }}
+                    {{ dayToReview.label }}</strong
+                >
+                {{ t('camps.show.needsReview') }}
             </p>
-            <Button size="sm" class="ml-auto" @click="onReview(dayToReview)">Zhodnotiť deň</Button>
+            <Button size="sm" class="ml-auto" @click="onReview(dayToReview)">{{
+                t('camps.show.reviewDay')
+            }}</Button>
         </div>
 
         <!-- Missing points -->
@@ -314,11 +399,16 @@ function submitDuplicate() {
         >
             <Trophy class="size-5 text-amber-600 dark:text-amber-400" />
             <p class="text-sm">
-                <strong>{{ entryNeedingPoints.title ?? entryNeedingPoints.activity?.name }}</strong>
-                ešte nemá zapísané body pre tvoju skupinu.
+                <strong>{{
+                    entryNeedingPoints.title ??
+                    entryNeedingPoints.activity?.name
+                }}</strong>
+                {{ t('camps.show.needsPoints') }}
             </p>
             <Button as-child size="sm" class="ml-auto">
-                <Link :href="leaderboard(camp.id)">Zapísať body</Link>
+                <Link :href="leaderboard(camp.id)">{{
+                    t('camps.show.recordPoints')
+                }}</Link>
             </Button>
         </div>
 
@@ -329,27 +419,26 @@ function submitDuplicate() {
         >
             <Lock class="size-5 text-amber-600 dark:text-amber-400" />
             <p class="text-sm">
-                <strong>Program je uzamknutý</strong> — úpravy rozvrhu sú vypnuté pre všetkých.
-                <span v-if="camp.is_owner">Odomkneš ho tlačidlom hore.</span>
-                <span v-else>Odomknúť ho môže vlastník tábora.</span>
-                Poznámky k dňom a hodnotenia fungujú ďalej.
+                <strong>{{ t('camps.locked.title') }}</strong>
+                {{ t('camps.show.lockedBody') }}
+                <span v-if="camp.is_owner">{{
+                    t('camps.show.lockedOwner')
+                }}</span>
+                <span v-else>{{ t('camps.show.lockedLeader') }}</span>
+                {{ t('camps.show.lockedStillWorks') }}
             </p>
         </div>
 
         <!-- Legend + touch edit toggle -->
         <div class="flex flex-wrap items-center gap-3">
             <p v-if="isCoarsePointer" class="text-xs text-muted-foreground">
-                Ťukni na aktivitu pre detail.
+                {{ t('camps.show.touchHint') }}
                 <template v-if="!camp.schedule_locked">
-                    Presúvanie zapneš tlačidlom <strong>Upravovať</strong>.
+                    {{ t('camps.show.touchEditHint') }}
                 </template>
             </p>
             <p v-else class="hidden text-xs text-muted-foreground sm:block">
-                Klikni do voľného miesta a pridaj aktivitu. Aktivitu <strong>potiahni</strong> pre presun,
-                za pravý okraj pre zmenu dĺžky. <strong>Ctrl+klik</strong> označí viac aktivít (presúvajú sa
-                spolu), <strong>pravý klik</strong> otvorí menu. Farebné <strong>štítky blokov</strong> nad
-                aktivitami sa dajú potiahnuť (presun len v tomto dni) alebo kliknúť pre skrytie a obnovenie.
-                <strong>⭐</strong> pri dni = zhodnoť ho.
+                {{ t('camps.show.desktopHint') }}
             </p>
             <Button
                 v-if="isCoarsePointer && !camp.schedule_locked"
@@ -358,7 +447,8 @@ function submitDuplicate() {
                 class="ml-auto"
                 @click="mobileEdit = !mobileEdit"
             >
-                <Pencil /> {{ mobileEdit ? 'Upravovanie zapnuté' : 'Upravovať' }}
+                <Pencil />
+                {{ mobileEdit ? t('camps.show.editingOn') : t('common.edit') }}
             </Button>
         </div>
 
@@ -379,9 +469,12 @@ function submitDuplicate() {
             @slot-override="onSlotOverride"
             @slot-override-reset="onSlotOverrideReset"
         />
-        <div v-else class="rounded-xl border border-dashed p-12 text-center text-muted-foreground">
-            <p v-if="!slots.length">Najprv pridaj časové bloky.</p>
-            <p v-else>Žiadne dni. Pridaj deň alebo uprav dátumy tábora.</p>
+        <div
+            v-else
+            class="rounded-xl border border-dashed p-12 text-center text-muted-foreground"
+        >
+            <p v-if="!slots.length">{{ t('camps.show.noSlots') }}</p>
+            <p v-else>{{ t('camps.show.noDays') }}</p>
         </div>
     </div>
 
@@ -398,7 +491,11 @@ function submitDuplicate() {
         :editable="!camp.schedule_locked"
     />
     <DayDialog v-model:open="dayOpen" :day="dayForDialog" />
-    <DayReviewDialog v-model:open="reviewOpen" :day="reviewDay" :questions="feedbackQuestions" />
+    <DayReviewDialog
+        v-model:open="reviewOpen"
+        :day="reviewDay"
+        :questions="feedbackQuestions"
+    />
     <PlanVersionsDialog
         v-model:open="versionsOpen"
         :camp-id="camp.id"
@@ -406,52 +503,91 @@ function submitDuplicate() {
         :is-owner="camp.is_owner"
         :schedule-locked="camp.schedule_locked"
     />
+    <CampOnboardingDialog v-model:open="onboardingOpen" />
 
     <!-- Duplicate -->
     <Dialog v-model:open="duplicateOpen">
         <DialogContent class="sm:max-w-lg">
             <DialogHeader>
-                <DialogTitle>Duplikovať tábor</DialogTitle>
+                <DialogTitle>{{ t('camps.show.duplicateTitle') }}</DialogTitle>
                 <DialogDescription>
-                    Vytvorí nový turnus s rovnakou časovou kostrou. Program môžeš skopírovať alebo začať načisto.
+                    {{ t('camps.show.duplicateBody') }}
                 </DialogDescription>
             </DialogHeader>
             <form class="grid gap-4" @submit.prevent="submitDuplicate">
                 <div class="grid gap-2">
-                    <Label for="dup-name">Názov</Label>
-                    <Input id="dup-name" v-model="duplicateForm.name" required />
+                    <Label for="dup-name">{{ t('common.name') }}</Label>
+                    <Input
+                        id="dup-name"
+                        v-model="duplicateForm.name"
+                        required
+                    />
                     <InputError :message="duplicateForm.errors.name" />
                 </div>
                 <div class="grid gap-4 sm:grid-cols-3">
                     <div class="grid gap-2">
-                        <Label for="dup-year">Rok</Label>
-                        <Input id="dup-year" v-model="duplicateForm.year" type="number" />
+                        <Label for="dup-year">{{
+                            t('camps.field.year')
+                        }}</Label>
+                        <Input
+                            id="dup-year"
+                            v-model="duplicateForm.year"
+                            type="number"
+                        />
                         <InputError :message="duplicateForm.errors.year" />
                     </div>
                     <div class="grid gap-2">
-                        <Label for="dup-start">Začiatok</Label>
-                        <Input id="dup-start" v-model="duplicateForm.start_date" type="date" required />
-                        <InputError :message="duplicateForm.errors.start_date" />
+                        <Label for="dup-start">{{
+                            t('camps.field.start')
+                        }}</Label>
+                        <Input
+                            id="dup-start"
+                            v-model="duplicateForm.start_date"
+                            type="date"
+                            required
+                        />
+                        <InputError
+                            :message="duplicateForm.errors.start_date"
+                        />
                     </div>
                     <div class="grid gap-2">
-                        <Label for="dup-end">Koniec</Label>
-                        <Input id="dup-end" v-model="duplicateForm.end_date" type="date" required />
+                        <Label for="dup-end">{{ t('camps.field.end') }}</Label>
+                        <Input
+                            id="dup-end"
+                            v-model="duplicateForm.end_date"
+                            type="date"
+                            required
+                        />
                         <InputError :message="duplicateForm.errors.end_date" />
                     </div>
                 </div>
                 <label class="flex items-center gap-3 rounded-lg border p-3">
                     <Checkbox
                         :model-value="duplicateForm.copy_program"
-                        @update:model-value="duplicateForm.copy_program = $event === true"
+                        @update:model-value="
+                            duplicateForm.copy_program = $event === true
+                        "
                     />
                     <span>
-                        <span class="font-medium">Skopírovať program</span>
-                        <span class="block text-sm text-muted-foreground">Prenesie aktivity na zodpovedajúce dni.</span>
+                        <span class="font-medium">{{
+                            t('camps.show.copyProgram')
+                        }}</span>
+                        <span class="block text-sm text-muted-foreground">{{
+                            t('camps.show.copyProgramHint')
+                        }}</span>
                     </span>
                 </label>
                 <DialogFooter>
-                    <Button type="button" variant="outline" @click="duplicateOpen = false">Zrušiť</Button>
-                    <Button type="submit" :disabled="duplicateForm.processing">Duplikovať</Button>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        @click="duplicateOpen = false"
+                    >
+                        {{ t('common.cancel') }}
+                    </Button>
+                    <Button type="submit" :disabled="duplicateForm.processing">
+                        {{ t('common.duplicate') }}
+                    </Button>
                 </DialogFooter>
             </form>
         </DialogContent>

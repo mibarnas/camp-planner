@@ -12,12 +12,16 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useI18n } from '@/i18n';
+import { dateLocale } from '@/lib/datetime';
 import {
     destroy as destroyVersion,
     restore as restoreVersion,
     store as storeVersion,
 } from '@/routes/libraries/versions';
 import type { PlanVersion } from '@/types/camp';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     open: boolean;
@@ -29,7 +33,9 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:open': [value: boolean] }>();
 
 const today = new Date();
-const form = useForm({ name: `Verzia ${today.getDate()}.${today.getMonth() + 1}.` });
+const form = useForm({
+    name: `Verzia ${today.getDate()}.${today.getMonth() + 1}.`,
+});
 
 function save() {
     form.post(storeVersion(props.libraryId).url, {
@@ -40,28 +46,31 @@ function save() {
 
 function restore(version: PlanVersion) {
     if (
-        !confirm(
-            `Obnoviť verziu „${version.name}"? Aktivity sa upravia podľa uloženého stavu a tie, ktoré vo verzii nie sú, sa zmažú. Aktuálny stav sa najprv uloží ako záloha.`,
-        )
+        !confirm(t('versions.library.confirmRestore', { name: version.name }))
     ) {
         return;
     }
 
     router.post(
-        restoreVersion({ library: props.libraryId, libraryVersion: version.id }).url,
+        restoreVersion({ library: props.libraryId, libraryVersion: version.id })
+            .url,
         {},
         { preserveScroll: true },
     );
 }
 
 function remove(version: PlanVersion) {
-    if (!confirm(`Zmazať verziu „${version.name}"?`)) {
+    if (!confirm(t('versions.confirmDelete', { name: version.name }))) {
         return;
     }
 
-    router.delete(destroyVersion({ library: props.libraryId, libraryVersion: version.id }).url, {
-        preserveScroll: true,
-    });
+    router.delete(
+        destroyVersion({ library: props.libraryId, libraryVersion: version.id })
+            .url,
+        {
+            preserveScroll: true,
+        },
+    );
 }
 
 function formatDate(iso: string | null): string {
@@ -69,7 +78,7 @@ function formatDate(iso: string | null): string {
         return '';
     }
 
-    return new Date(iso).toLocaleString('sk-SK', {
+    return new Date(iso).toLocaleString(dateLocale(), {
         day: 'numeric',
         month: 'numeric',
         year: 'numeric',
@@ -84,22 +93,31 @@ function formatDate(iso: string | null): string {
         <DialogContent class="sm:max-w-lg">
             <DialogHeader>
                 <DialogTitle class="flex items-center gap-2">
-                    <History class="size-5" /> Verzie databázy aktivít
+                    <History class="size-5" /> {{ t('versions.library.title') }}
                 </DialogTitle>
                 <DialogDescription>
-                    Ulož si stav databázy pred väčšou zmenou a kedykoľvek sa k nemu vráť.
-                    Verzia obsahuje všetky aktivity aj ich kategórie.
+                    {{ t('versions.library.description') }}
                 </DialogDescription>
             </DialogHeader>
 
-            <form v-if="isOwner" class="flex flex-col gap-2 sm:flex-row sm:items-end" @submit.prevent="save">
+            <form
+                v-if="isOwner"
+                class="flex flex-col gap-2 sm:flex-row sm:items-end"
+                @submit.prevent="save"
+            >
                 <div class="grid flex-1 gap-2">
-                    <Label for="library-version-name">Názov verzie</Label>
-                    <Input id="library-version-name" v-model="form.name" required />
+                    <Label for="library-version-name">{{
+                        t('versions.name')
+                    }}</Label>
+                    <Input
+                        id="library-version-name"
+                        v-model="form.name"
+                        required
+                    />
                     <InputError :message="form.errors.name" />
                 </div>
                 <Button type="submit" :disabled="form.processing">
-                    <Save /> Uložiť aktuálny stav
+                    <Save /> {{ t('versions.saveCurrent') }}
                 </Button>
             </form>
 
@@ -113,14 +131,28 @@ function formatDate(iso: string | null): string {
                         <p class="truncate font-medium">{{ version.name }}</p>
                         <p class="truncate text-xs text-muted-foreground">
                             {{ formatDate(version.created_at) }}
-                            <span v-if="version.author"> · {{ version.author }}</span>
+                            <span v-if="version.author">
+                                · {{ version.author }}</span
+                            >
                         </p>
                     </div>
-                    <div v-if="isOwner" class="flex shrink-0 items-center gap-1">
-                        <Button variant="outline" size="sm" @click="restore(version)">
-                            <RotateCcw /> Obnoviť
+                    <div
+                        v-if="isOwner"
+                        class="flex shrink-0 items-center gap-1"
+                    >
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            @click="restore(version)"
+                        >
+                            <RotateCcw /> {{ t('versions.restore') }}
                         </Button>
-                        <Button variant="ghost" size="icon-sm" title="Zmazať verziu" @click="remove(version)">
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            :title="t('versions.delete')"
+                            @click="remove(version)"
+                        >
                             <Trash2 class="text-destructive" />
                         </Button>
                     </div>
@@ -129,7 +161,7 @@ function formatDate(iso: string | null): string {
                     v-if="!versions.length"
                     class="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground"
                 >
-                    Zatiaľ žiadne uložené verzie.
+                    {{ t('versions.empty') }}
                 </p>
             </div>
         </DialogContent>

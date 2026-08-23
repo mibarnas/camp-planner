@@ -22,6 +22,11 @@ class CreateNewUser implements CreatesNewUsers
         Validator::make($input, [
             ...$this->profileRules(),
             'password' => $this->passwordRules(),
+            // GDPR/consumer transparency: the account is only created once the
+            // person has actively ticked the box, so consent is demonstrable.
+            'terms' => ['accepted'],
+        ], [
+            'terms.accepted' => __('You must agree to the Terms of Use and the Privacy Policy.'),
         ])->validate();
 
         return User::create([

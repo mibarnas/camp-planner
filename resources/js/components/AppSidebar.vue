@@ -14,18 +14,21 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { useI18n } from '@/i18n';
 import { index as activitiesIndex } from '@/routes/activities';
 import { index as campsIndex } from '@/routes/camps';
 import type { NavItem } from '@/types';
 
+const { t } = useI18n();
+
 const mainNavItems: NavItem[] = [
     {
-        title: 'Tábory',
+        title: t('nav.camps'),
         href: campsIndex(),
         icon: Tent,
     },
     {
-        title: 'Aktivity',
+        title: t('nav.activities'),
         href: activitiesIndex(),
         icon: ListChecks,
     },

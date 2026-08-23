@@ -69,7 +69,7 @@ it('restores matched activities in place, adds missing ones and drops the rest',
         ->and($kept->default_duration)->toBe(60)
         ->and($kept->description)->toBeNull()
         ->and(Activity::find($extra->id))->toBeNull()
-        ->and(LibraryVersion::where('name', 'Pred obnovením: V1')->exists())->toBeTrue();
+        ->and(LibraryVersion::where('name', __('Before restoring: :name', ['name' => 'V1']))->exists())->toBeTrue();
 });
 
 it('keeps schedule cells when a restore deletes the activity they point at', function () {

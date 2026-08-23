@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Form, Head } from '@inertiajs/vue3';
+import { Form, Head, setLayoutProps } from '@inertiajs/vue3';
+import { watchEffect } from 'vue';
 import {
     index as confirmOptions,
     store as confirmStore,
@@ -10,27 +11,33 @@ import PasswordInput from '@/components/PasswordInput.vue';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import { useI18n } from '@/i18n';
 import { store } from '@/routes/password/confirm';
 
-defineOptions({
-    layout: {
-        title: 'Potvrdenie hesla',
-        description: 'Toto je zabezpečená časť aplikácie. Pred pokračovaním potvrď svoje heslo.',
-    },
+const { t } = useI18n();
+
+// The layout props carry translated text, so they have to be set during
+// render rather than in defineOptions(), which is hoisted out of setup()
+// and would freeze the language at module-evaluation time.
+watchEffect(() => {
+    setLayoutProps({
+        title: t('auth.confirm.title'),
+        description: t('auth.confirm.description'),
+    });
 });
 </script>
 
 <template>
-    <Head title="Potvrdenie hesla" />
+    <Head :title="t('auth.confirm.title')" />
 
     <PasskeyVerify
         :routes="{
             options: confirmOptions(),
             submit: confirmStore(),
         }"
-        label="Potvrdiť prístupovým kľúčom"
-        loading-label="Potvrdzujem…"
-        separator="Alebo potvrď heslom"
+        :label="t('auth.confirm.passkey')"
+        :loading-label="t('auth.confirm.passkeyLoading')"
+        :separator="t('auth.confirm.separator')"
     />
 
     <Form
@@ -40,7 +47,7 @@ defineOptions({
     >
         <div class="space-y-6">
             <div class="grid gap-2">
-                <Label htmlFor="password">Heslo</Label>
+                <Label htmlFor="password">{{ t('auth.field.password') }}</Label>
                 <PasswordInput
                     id="password"
                     name="password"
@@ -60,7 +67,7 @@ defineOptions({
                     data-test="confirm-password-button"
                 >
                     <Spinner v-if="processing" />
-                    Potvrdiť heslo
+                    {{ t('auth.confirm.submit') }}
                 </Button>
             </div>
         </div>

@@ -93,7 +93,8 @@ it('lists members and the share link on the leaders page', function () {
     $this->actingAs($owner)
         ->get("/camps/{$camp->id}/leaders")
         ->assertInertia(fn ($page) => $page
-            ->has('members', 2)
+            ->has('people', 2)
+            ->where('people.0.status', 'owner')
             ->has('shareLink')
             ->where('camp.is_owner', true)
         );
@@ -152,4 +153,24 @@ it('no longer ships member and summary detail to the planner page', function () 
             ->missing('invitations')
             ->missing('aiSummaries')
         );
+});
+
+test('creating a camp flashes the onboarding signal to its creator', function () {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post('/camps', [
+        'name' => 'Nový tábor',
+        'year' => 2026,
+        'start_date' => '2026-07-13',
+        'end_date' => '2026-07-15',
+    ]);
+
+    $camp = Camp::where('name', 'Nový tábor')->sole();
+    $response->assertRedirect(route('camps.show', $camp));
+
+    // Inertia's own flash channel is the one the client listens to; it is not
+    // persisted into history state, so the modal opens exactly once.
+    $flash = session('inertia.flash_data');
+    expect($flash['camp_onboarding'])->toBeTrue()
+        ->and($flash['toast']['type'])->toBe('success');
 });

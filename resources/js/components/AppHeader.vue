@@ -34,10 +34,13 @@ import {
 import UserMenuContent from '@/components/UserMenuContent.vue';
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
 import { getInitials } from '@/composables/useInitials';
+import { useI18n } from '@/i18n';
 import { toUrl } from '@/lib/utils';
 import { index as activitiesIndex } from '@/routes/activities';
 import { index as campsIndex } from '@/routes/camps';
 import type { BreadcrumbItem, NavItem } from '@/types';
+
+const { t } = useI18n();
 
 type Props = {
     breadcrumbs?: BreadcrumbItem[];
@@ -56,12 +59,12 @@ const activeItemStyles =
 
 const mainNavItems: NavItem[] = [
     {
-        title: 'Tábory',
+        title: t('nav.camps'),
         href: campsIndex(),
         icon: Tent,
     },
     {
-        title: 'Aktivity',
+        title: t('nav.activities'),
         href: activitiesIndex(),
         icon: ListChecks,
     },
@@ -141,7 +144,10 @@ const rightNavItems: NavItem[] = [];
                     </Sheet>
                 </div>
 
-                <Link :href="campsIndex().url" class="flex items-center gap-x-2">
+                <Link
+                    :href="campsIndex().url"
+                    class="flex items-center gap-x-2"
+                >
                     <AppLogo />
                 </Link>
 

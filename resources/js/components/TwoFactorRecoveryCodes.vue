@@ -12,7 +12,10 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { useTwoFactorAuth } from '@/composables/useTwoFactorAuth';
+import { useI18n } from '@/i18n';
 import { regenerateRecoveryCodes } from '@/routes/two-factor';
+
+const { t } = useI18n();
 
 const { recoveryCodesList, fetchRecoveryCodes, errors } = useTwoFactorAuth();
 const isRecoveryCodesVisible = ref<boolean>(false);
@@ -42,10 +45,10 @@ onMounted(async () => {
     <Card class="w-full">
         <CardHeader>
             <CardTitle class="flex gap-3">
-                <LockKeyhole class="size-4" />Záložné kódy 2FA
+                <LockKeyhole class="size-4" />{{ t('settings.recovery.title') }}
             </CardTitle>
             <CardDescription>
-                Záložné kódy ti umožnia obnoviť prístup, ak stratíš 2FA zariadenie. Ulož ich do bezpečného správcu hesiel.
+                {{ t('settings.recovery.description') }}
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -57,8 +60,11 @@ onMounted(async () => {
                         :is="isRecoveryCodesVisible ? EyeOff : Eye"
                         class="size-4"
                     />
-                    {{ isRecoveryCodesVisible ? 'Skryť' : 'Zobraziť' }} záložné
-                    kódy
+                    {{
+                        isRecoveryCodesVisible
+                            ? t('settings.recovery.hide')
+                            : t('settings.recovery.show')
+                    }}
                 </Button>
 
                 <Form
@@ -74,7 +80,7 @@ onMounted(async () => {
                         type="submit"
                         :disabled="processing"
                     >
-                        <RefreshCw /> Vygenerovať nové kódy
+                        <RefreshCw /> {{ t('settings.recovery.regenerate') }}
                     </Button>
                 </Form>
             </div>
@@ -110,7 +116,11 @@ onMounted(async () => {
                         </div>
                     </div>
                     <p class="text-xs text-muted-foreground select-none">
-                        Každý záložný kód použiješ raz na prístup k účtu a potom sa odstráni. Ak potrebuješ ďalšie, klikni vyššie na <span class="font-bold">Vygenerovať nové kódy</span>.
+                        {{ t('settings.recovery.hintPrefix') }}
+                        <span class="font-bold">{{
+                            t('settings.recovery.regenerate')
+                        }}</span
+                        >{{ t('settings.recovery.hintSuffix') }}
                     </p>
                 </div>
             </div>

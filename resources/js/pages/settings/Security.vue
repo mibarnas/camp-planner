@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { Form, Head } from '@inertiajs/vue3';
+import { Form, Head, setLayoutProps } from '@inertiajs/vue3';
+import { watchEffect } from 'vue';
 import SecurityController from '@/actions/App/Http/Controllers/Settings/SecurityController';
-import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import type { Props as ManagePasskeysProps } from '@/components/ManagePasskeys.vue';
 import ManagePasskeys from '@/components/ManagePasskeys.vue';
 import type { Props as ManageTwoFactorProps } from '@/components/ManageTwoFactor.vue';
 import ManageTwoFactor from '@/components/ManageTwoFactor.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
+import SettingsSection from '@/components/SettingsSection.vue';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { useI18n } from '@/i18n';
 import { edit } from '@/routes/security';
+
+const { t } = useI18n();
 
 type Props = {
     passwordRules: string;
@@ -19,30 +23,30 @@ type Props = {
 
 const props = defineProps<Props>();
 
-defineOptions({
-    layout: {
+// The layout props carry translated text, so they have to be set during
+// render rather than in defineOptions(), which is hoisted out of setup()
+// and would freeze the language at module-evaluation time.
+watchEffect(() => {
+    setLayoutProps({
         breadcrumbs: [
             {
-                title: 'Zabezpečenie',
+                title: t('settings.nav.security'),
                 href: edit(),
             },
         ],
-    },
+    });
 });
 </script>
 
 <template>
-    <Head title="Zabezpečenie" />
+    <Head :title="t('settings.nav.security')" />
 
-    <h1 class="sr-only">Zabezpečenie</h1>
+    <h1 class="sr-only">{{ t('settings.nav.security') }}</h1>
 
-    <div class="space-y-6">
-        <Heading
-            variant="small"
-            title="Zmena hesla"
-            description="Používaj dlhé a náhodné heslo, aby bol tvoj účet v bezpečí"
-        />
-
+    <SettingsSection
+        :title="t('settings.password.title')"
+        :description="t('settings.password.description')"
+    >
         <Form
             v-bind="SecurityController.update.form()"
             :options="{
@@ -58,38 +62,42 @@ defineOptions({
             v-slot="{ errors, processing }"
         >
             <div class="grid gap-2">
-                <Label for="current_password">Súčasné heslo</Label>
+                <Label for="current_password">{{
+                    t('settings.password.current')
+                }}</Label>
                 <PasswordInput
                     id="current_password"
                     name="current_password"
                     class="mt-1 block w-full"
                     autocomplete="current-password"
-                    placeholder="Súčasné heslo"
+                    :placeholder="t('settings.password.current')"
                 />
                 <InputError :message="errors.current_password" />
             </div>
 
             <div class="grid gap-2">
-                <Label for="password">Nové heslo</Label>
+                <Label for="password">{{ t('settings.password.new') }}</Label>
                 <PasswordInput
                     id="password"
                     name="password"
                     class="mt-1 block w-full"
                     autocomplete="new-password"
-                    placeholder="Nové heslo"
+                    :placeholder="t('settings.password.new')"
                     :passwordrules="props.passwordRules"
                 />
                 <InputError :message="errors.password" />
             </div>
 
             <div class="grid gap-2">
-                <Label for="password_confirmation">Potvrdenie hesla</Label>
+                <Label for="password_confirmation">{{
+                    t('auth.field.passwordConfirm')
+                }}</Label>
                 <PasswordInput
                     id="password_confirmation"
                     name="password_confirmation"
                     class="mt-1 block w-full"
                     autocomplete="new-password"
-                    placeholder="Zopakuj heslo"
+                    :placeholder="t('auth.placeholder.passwordConfirm')"
                     :passwordrules="props.passwordRules"
                 />
                 <InputError :message="errors.password_confirmation" />
@@ -100,20 +108,32 @@ defineOptions({
                     :disabled="processing"
                     data-test="update-password-button"
                 >
-                    Uložiť
+                    {{ t('common.save') }}
                 </Button>
             </div>
         </Form>
-    </div>
+    </SettingsSection>
 
-    <ManageTwoFactor
-        :canManageTwoFactor="canManageTwoFactor"
-        :requiresConfirmation="requiresConfirmation"
-        :twoFactorEnabled="twoFactorEnabled"
-    />
+    <SettingsSection
+        v-if="canManageTwoFactor"
+        :title="t('auth.twoFactor.title')"
+        :description="t('settings.twoFactor.description')"
+    >
+        <ManageTwoFactor
+            :canManageTwoFactor="canManageTwoFactor"
+            :requiresConfirmation="requiresConfirmation"
+            :twoFactorEnabled="twoFactorEnabled"
+        />
+    </SettingsSection>
 
-    <ManagePasskeys
-        :canManagePasskeys="canManagePasskeys"
-        :passkeys="passkeys"
-    />
+    <SettingsSection
+        v-if="canManagePasskeys"
+        :title="t('settings.passkeys.title')"
+        :description="t('settings.passkeys.description')"
+    >
+        <ManagePasskeys
+            :canManagePasskeys="canManagePasskeys"
+            :passkeys="passkeys"
+        />
+    </SettingsSection>
 </template>

@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { Monitor, Moon, Sun } from '@lucide/vue';
 import { useAppearance } from '@/composables/useAppearance';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
 
 const { appearance, updateAppearance } = useAppearance();
 
 const tabs = [
-    { value: 'light', Icon: Sun, label: 'Svetlý' },
-    { value: 'dark', Icon: Moon, label: 'Tmavý' },
-    { value: 'system', Icon: Monitor, label: 'Systém' },
+    { value: 'light', Icon: Sun, label: t('appearance.light') },
+    { value: 'dark', Icon: Moon, label: t('appearance.dark') },
+    { value: 'system', Icon: Monitor, label: t('appearance.system') },
 ] as const;
 </script>
 

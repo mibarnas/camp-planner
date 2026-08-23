@@ -3,6 +3,7 @@ import { initializeTheme } from '@/composables/useAppearance';
 import AppLayout from '@/layouts/AppLayout.vue';
 import AuthLayout from '@/layouts/AuthLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
+import { initializeCampOnboarding } from '@/lib/campOnboarding';
 import { initializeFlashToast } from '@/lib/flashToast';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
@@ -14,6 +15,10 @@ createInertiaApp({
             case name === 'Welcome':
                 return null;
             case name === 'activities/Shared':
+                return null;
+            // Legal pages are standalone and public — they must render
+            // for guests, so no app chrome.
+            case name.startsWith('legal/'):
                 return null;
             case name === 'invitations/Join':
                 return AuthLayout;
@@ -37,6 +42,9 @@ initializeTheme();
 
 // This will listen for flash toast data from the server...
 initializeFlashToast();
+
+// ...and for the one-shot signal that a camp was just created.
+initializeCampOnboarding();
 
 // A deploy replaces the hashed JS chunks. A tab that was opened before the
 // deploy will 404 when it lazy-loads a page chunk that no longer exists,

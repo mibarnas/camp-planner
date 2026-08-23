@@ -41,7 +41,7 @@ class FeedbackController extends Controller
             return [
                 'id' => $day->id,
                 'date' => $day->date->toDateString(),
-                'weekday' => Weekdays::sk($day->date->dayOfWeekIso),
+                'weekday' => Weekdays::for($day->date->dayOfWeekIso),
                 'label' => $day->date->format('j.n.'),
                 'is_last' => $day->id === $lastDayId,
                 'entries_count' => $day->entries->count(),

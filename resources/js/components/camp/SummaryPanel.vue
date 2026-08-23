@@ -11,11 +11,15 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { useI18n } from '@/i18n';
+import { dateLocale } from '@/lib/datetime';
 import { HttpError, postJson } from '@/lib/http';
 import { edit as editAi } from '@/routes/ai';
 import { summary as campSummary } from '@/routes/camps';
 import { summary as daySummary } from '@/routes/days';
 import type { AiSummary, SummaryDay } from '@/types/camp';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     campId: number;
@@ -58,7 +62,7 @@ const shownSavedAt = computed(
 );
 
 function savedAtLabel(iso: string): string {
-    return new Date(iso).toLocaleString('sk-SK', {
+    return new Date(iso).toLocaleString(dateLocale(), {
         day: 'numeric',
         month: 'numeric',
         hour: '2-digit',
@@ -130,7 +134,7 @@ async function generate() {
             entry,
         ];
     } catch (e) {
-        error.value = e instanceof Error ? e.message : 'Nastala chyba.';
+        error.value = e instanceof Error ? e.message : t('common.error');
         // The backend flags a missing key so we can link to settings.
         needsKey.value = e instanceof HttpError && e.data.needs_key === true;
     } finally {
@@ -147,7 +151,9 @@ async function generate() {
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="camp">Celý tábor</SelectItem>
+                    <SelectItem value="camp">{{
+                        t('summary.wholeCamp')
+                    }}</SelectItem>
                     <SelectItem
                         v-for="d in reviewedDays"
                         :key="d.id"
@@ -162,10 +168,10 @@ async function generate() {
                 <Sparkles v-else />
                 {{
                     loading
-                        ? 'Generujem…'
+                        ? t('summary.generating')
                         : shownHtml
-                          ? 'Generovať znova'
-                          : 'Generovať súhrn'
+                          ? t('summary.regenerate')
+                          : t('summary.generate')
                 }}
             </Button>
         </div>
@@ -179,7 +185,7 @@ async function generate() {
             <div class="space-y-2">
                 <p>{{ error }}</p>
                 <Button v-if="needsKey" as-child size="sm" variant="outline">
-                    <Link :href="editAi()">Pridať kľúč</Link>
+                    <Link :href="editAi()">{{ t('summary.addKey') }}</Link>
                 </Button>
             </div>
         </div>
@@ -192,7 +198,7 @@ async function generate() {
                 v-html="shownHtml"
             />
             <p v-if="shownSavedAt" class="text-xs text-muted-foreground">
-                Uložené {{ savedAtLabel(shownSavedAt) }}
+                {{ t('summary.savedAt', { when: savedAtLabel(shownSavedAt) }) }}
             </p>
         </div>
 
@@ -200,7 +206,7 @@ async function generate() {
             v-else-if="!error && !loading"
             class="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground"
         >
-            Vyber rozsah a vygeneruj súhrn.
+            {{ t('summary.empty') }}
         </div>
     </div>
 </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
+import AppFooter from '@/components/AppFooter.vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import { home } from '@/routes';
 
@@ -10,33 +11,43 @@ defineProps<{
 </script>
 
 <template>
-    <div
-        class="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10"
-    >
-        <div class="w-full max-w-sm">
-            <div class="flex flex-col gap-8">
-                <div class="flex flex-col items-center gap-4">
-                    <Link
-                        :href="home()"
-                        class="flex flex-col items-center gap-2 font-medium"
-                    >
-                        <div
-                            class="mb-1 flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm shadow-primary/25"
+    <div class="flex min-h-svh flex-col bg-background">
+        <div
+            class="flex flex-1 flex-col items-center justify-center gap-6 p-6 md:p-10"
+        >
+            <div class="w-full max-w-sm">
+                <div class="flex flex-col gap-8">
+                    <div class="flex flex-col items-center gap-4">
+                        <Link
+                            :href="home()"
+                            class="flex flex-col items-center gap-2 font-medium"
                         >
-                            <AppLogoIcon class="size-7" />
+                            <div
+                                class="mb-1 flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm shadow-primary/25"
+                            >
+                                <AppLogoIcon class="size-7" />
+                            </div>
+                            <span class="text-lg font-semibold"
+                                >Tábor<span class="text-primary"
+                                    >Planner</span
+                                ></span
+                            >
+                            <span class="sr-only">{{ title }}</span>
+                        </Link>
+                        <div class="space-y-2 text-center">
+                            <h1 class="text-xl font-medium">{{ title }}</h1>
+                            <p
+                                class="text-center text-sm text-muted-foreground"
+                            >
+                                {{ description }}
+                            </p>
                         </div>
-                        <span class="text-lg font-semibold">Tábor<span class="text-primary">Planner</span></span>
-                        <span class="sr-only">{{ title }}</span>
-                    </Link>
-                    <div class="space-y-2 text-center">
-                        <h1 class="text-xl font-medium">{{ title }}</h1>
-                        <p class="text-center text-sm text-muted-foreground">
-                            {{ description }}
-                        </p>
                     </div>
+                    <slot />
                 </div>
-                <slot />
             </div>
         </div>
+
+        <AppFooter variant="bare" />
     </div>
 </template>

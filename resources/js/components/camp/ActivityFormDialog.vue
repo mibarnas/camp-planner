@@ -21,9 +21,15 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useI18n } from '@/i18n';
 import { categoryById, colorStyle, COLOR_NAMES } from '@/lib/campColors';
-import { store as storeActivity, update as updateActivity } from '@/routes/activities';
+import {
+    store as storeActivity,
+    update as updateActivity,
+} from '@/routes/activities';
 import type { Activity, ActivityCategory } from '@/types/camp';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     open: boolean;
@@ -51,8 +57,8 @@ watch(
     () => props.open,
     (open) => {
         if (!open) {
-return;
-}
+            return;
+        }
 
         const a = props.activity;
         form.clearErrors();
@@ -78,8 +84,8 @@ function onCategoryChange(value: string) {
         const cat = categoryById(props.categories, id);
 
         if (cat?.color) {
-form.color = cat.color;
-}
+            form.color = cat.color;
+        }
     }
 }
 
@@ -104,57 +110,96 @@ function submit() {
     <Dialog :open="open" @update:open="emit('update:open', $event)">
         <DialogContent class="sm:max-w-lg">
             <DialogHeader>
-                <DialogTitle>{{ activity ? 'Upraviť aktivitu' : 'Nová aktivita' }}</DialogTitle>
+                <DialogTitle>{{
+                    activity ? t('activities.edit') : t('activities.new')
+                }}</DialogTitle>
                 <DialogDescription>
-                    Aktivity sú znovupoužiteľné naprieč tábormi. Vyberáš ich pri plánovaní programu.
+                    {{ t('activities.formDescription') }}
                 </DialogDescription>
             </DialogHeader>
 
             <form class="grid gap-4" @submit.prevent="submit">
                 <div class="grid gap-2">
-                    <Label for="activity-name">Názov</Label>
-                    <Input id="activity-name" v-model="form.name" required autofocus />
+                    <Label for="activity-name">{{ t('common.name') }}</Label>
+                    <Input
+                        id="activity-name"
+                        v-model="form.name"
+                        required
+                        autofocus
+                    />
                     <InputError :message="form.errors.name" />
                 </div>
 
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div class="grid gap-2">
-                        <Label>Kategória (tag)</Label>
+                        <Label>{{ t('activities.category') }}</Label>
                         <Select
-                            :model-value="form.activity_category_id === null ? 'none' : String(form.activity_category_id)"
-                            @update:model-value="onCategoryChange($event as string)"
+                            :model-value="
+                                form.activity_category_id === null
+                                    ? 'none'
+                                    : String(form.activity_category_id)
+                            "
+                            @update:model-value="
+                                onCategoryChange($event as string)
+                            "
                         >
                             <SelectTrigger>
-                                <SelectValue placeholder="Bez kategórie" />
+                                <SelectValue
+                                    :placeholder="t('activities.noCategory')"
+                                />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="none">Bez kategórie</SelectItem>
-                                <SelectItem v-for="c in categories" :key="c.id" :value="String(c.id)">
+                                <SelectItem value="none">{{
+                                    t('activities.noCategory')
+                                }}</SelectItem>
+                                <SelectItem
+                                    v-for="c in categories"
+                                    :key="c.id"
+                                    :value="String(c.id)"
+                                >
                                     <span class="flex items-center gap-2">
-                                        <span class="size-2.5 rounded-full" :class="colorStyle(c.color).dot" />
+                                        <span
+                                            class="size-2.5 rounded-full"
+                                            :class="colorStyle(c.color).dot"
+                                        />
                                         {{ c.name }}
                                     </span>
                                 </SelectItem>
                             </SelectContent>
                         </Select>
-                        <InputError :message="form.errors.activity_category_id" />
+                        <InputError
+                            :message="form.errors.activity_category_id"
+                        />
                     </div>
                     <div class="grid gap-2">
-                        <Label for="activity-duration">Dĺžka (min)</Label>
-                        <Input id="activity-duration" v-model="form.default_duration" type="number" min="5" max="1440" />
+                        <Label for="activity-duration">{{
+                            t('activities.duration')
+                        }}</Label>
+                        <Input
+                            id="activity-duration"
+                            v-model="form.default_duration"
+                            type="number"
+                            min="5"
+                            max="1440"
+                        />
                         <InputError :message="form.errors.default_duration" />
                     </div>
                 </div>
 
                 <div class="grid gap-2">
-                    <Label>Farba na časovej osi</Label>
+                    <Label>{{ t('activities.timelineColor') }}</Label>
                     <div class="flex flex-wrap gap-1.5">
                         <button
                             v-for="c in COLOR_NAMES"
                             :key="c"
                             type="button"
                             class="size-6 rounded-full border-2 transition"
-                            :class="[colorStyle(c).dot, form.color === c ? 'border-foreground ring-2 ring-ring/40' : 'border-transparent']"
+                            :class="[
+                                colorStyle(c).dot,
+                                form.color === c
+                                    ? 'border-foreground ring-2 ring-ring/40'
+                                    : 'border-transparent',
+                            ]"
                             :title="c"
                             @click="form.color = c"
                         />
@@ -163,20 +208,40 @@ function submit() {
                 </div>
 
                 <div class="grid gap-2">
-                    <Label for="activity-description">Popis</Label>
-                    <Textarea id="activity-description" v-model="form.description" class="min-h-24" />
+                    <Label for="activity-description">{{
+                        t('activities.descriptionLabel')
+                    }}</Label>
+                    <Textarea
+                        id="activity-description"
+                        v-model="form.description"
+                        class="min-h-24"
+                    />
                     <InputError :message="form.errors.description" />
                 </div>
 
                 <div class="grid gap-2">
-                    <Label for="activity-materials">Potrebný materiál</Label>
-                    <Textarea id="activity-materials" v-model="form.materials" class="min-h-16" />
+                    <Label for="activity-materials">{{
+                        t('activities.field.materials')
+                    }}</Label>
+                    <Textarea
+                        id="activity-materials"
+                        v-model="form.materials"
+                        class="min-h-16"
+                    />
                     <InputError :message="form.errors.materials" />
                 </div>
 
                 <DialogFooter>
-                    <Button type="button" variant="outline" @click="emit('update:open', false)">Zrušiť</Button>
-                    <Button type="submit" :disabled="form.processing">Uložiť</Button>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        @click="emit('update:open', false)"
+                    >
+                        {{ t('common.cancel') }}
+                    </Button>
+                    <Button type="submit" :disabled="form.processing">
+                        {{ t('common.save') }}
+                    </Button>
                 </DialogFooter>
             </form>
         </DialogContent>
