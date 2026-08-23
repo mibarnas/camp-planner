@@ -1,10 +1,11 @@
 import { usePage } from '@inertiajs/vue3';
 import { computed, watchEffect } from 'vue';
 import type { ComputedRef } from 'vue';
+import de from './locales/de.json';
 import en from './locales/en.json';
 import sk from './locales/sk.json';
 
-export const LOCALES = ['sk', 'en'] as const;
+export const LOCALES = ['sk', 'en', 'de'] as const;
 
 export type Locale = (typeof LOCALES)[number];
 
@@ -14,6 +15,7 @@ export const DEFAULT_LOCALE: Locale = 'sk';
 export const LOCALE_LABELS: Record<Locale, string> = {
     sk: 'Slovenčina',
     en: 'English',
+    de: 'Deutsch',
 };
 
 type Catalog = Record<string, string>;
@@ -21,6 +23,7 @@ type Catalog = Record<string, string>;
 const catalogs: Record<Locale, Catalog> = {
     sk: sk as Catalog,
     en: en as Catalog,
+    de: de as Catalog,
 };
 
 export function isLocale(value: unknown): value is Locale {

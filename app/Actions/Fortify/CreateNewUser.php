@@ -33,6 +33,9 @@ class CreateNewUser implements CreatesNewUsers
             'name' => $input['name'],
             'email' => $input['email'],
             'password' => $input['password'],
+            // Nothing is "new" to someone who just signed up, so start them
+            // level with the current release instead of on the changelog.
+            'last_seen_version' => (string) config('app.version'),
         ]);
     }
 }

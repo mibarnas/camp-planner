@@ -24,6 +24,10 @@ test('new users can register', function () {
 
     $this->assertAuthenticated();
     $response->assertRedirect(route('camps.index', absolute: false));
+
+    // Nothing is "new" to someone who just signed up.
+    expect(User::where('email', 'test@example.com')->value('last_seen_version'))
+        ->toBe(config('app.version'));
 });
 
 test('registration requires agreeing to the terms and the privacy policy', function () {

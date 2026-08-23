@@ -38,6 +38,18 @@ test('legal pages follow the chosen locale', function () {
         ));
 });
 
+test('a locale without its own legal text falls back to English', function () {
+    // German is a supported UI locale, but the legal documents are only
+    // written in Slovak and English — those need a human, not a translation.
+    $this->withUnencryptedCookie('locale', 'de')
+        ->get(route('legal.privacy'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('locale', 'de')
+            ->where('html', fn (string $html) => str_contains($html, 'Privacy Policy'))
+        );
+});
+
 test('the locale can be switched and is shared with the front end', function () {
     $this->from(route('home'))
         ->put(route('locale.update'), ['locale' => 'en'])
@@ -47,8 +59,21 @@ test('the locale can be switched and is shared with the front end', function () 
 
 test('an unsupported locale is rejected', function () {
     $this->from(route('home'))
-        ->put(route('locale.update'), ['locale' => 'de'])
+        ->put(route('locale.update'), ['locale' => 'fr'])
         ->assertSessionHasErrors('locale');
+});
+
+// Listed literally rather than read from config: adding a locale should make
+// this fail until someone confirms it really is switchable end to end.
+test('every supported locale can be switched to', function (string $locale) {
+    $this->from(route('home'))
+        ->put(route('locale.update'), ['locale' => $locale])
+        ->assertSessionHasNoErrors()
+        ->assertCookie('locale', $locale, encrypted: false);
+})->with(['sk', 'en', 'de']);
+
+test('the supported locales are the ones covered above', function () {
+    expect(config('app.supported_locales'))->toEqualCanonicalizing(['sk', 'en', 'de']);
 });
 
 test('the locale cookie drives the shared inertia locale', function () {
@@ -97,6 +122,10 @@ test('a first-time visitor gets the language their browser asks for', function (
     $this->withHeader('Accept-Language', 'sk-SK,sk;q=0.9')
         ->get(route('home'))
         ->assertInertia(fn ($page) => $page->where('locale', 'sk'));
+
+    $this->withHeader('Accept-Language', 'de-DE,de;q=0.9')
+        ->get(route('home'))
+        ->assertInertia(fn ($page) => $page->where('locale', 'de'));
 });
 
 test('an unknown browser language falls back to the app default', function () {

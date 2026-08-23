@@ -15,20 +15,20 @@ export class HttpError extends Error {
     }
 }
 
-/**
- * POST JSON and get JSON back, outside Inertia (for on-demand actions like the
- * AI summary). Throws HttpError(message, body) on a non-2xx response.
- */
-export async function postJson<T = unknown>(url: string, body: unknown = {}): Promise<T> {
+async function request<T>(
+    method: 'GET' | 'POST',
+    url: string,
+    body?: unknown,
+): Promise<T> {
     const res = await fetch(url, {
-        method: 'POST',
+        method,
         headers: {
             'Content-Type': 'application/json',
             Accept: 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
             'X-XSRF-TOKEN': xsrfToken(),
         },
-        body: JSON.stringify(body),
+        body: body === undefined ? undefined : JSON.stringify(body),
         credentials: 'same-origin',
     });
 
@@ -45,4 +45,23 @@ export async function postJson<T = unknown>(url: string, body: unknown = {}): Pr
     }
 
     return data as T;
+}
+
+/**
+ * POST JSON and get JSON back, outside Inertia (for on-demand actions like the
+ * AI summary). Throws HttpError(message, body) on a non-2xx response.
+ */
+export async function postJson<T = unknown>(
+    url: string,
+    body: unknown = {},
+): Promise<T> {
+    return request<T>('POST', url, body);
+}
+
+/**
+ * GET JSON, outside Inertia, for content pulled in on demand rather than
+ * shipped with the page. Throws HttpError(message, body) on a non-2xx response.
+ */
+export async function getJson<T = unknown>(url: string): Promise<T> {
+    return request<T>('GET', url);
 }

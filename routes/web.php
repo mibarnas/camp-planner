@@ -7,6 +7,7 @@ use App\Http\Controllers\CampController;
 use App\Http\Controllers\CampDayController;
 use App\Http\Controllers\CampLeaderController;
 use App\Http\Controllers\CampMemberController;
+use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\DayReviewController;
 use App\Http\Controllers\EntryPointsController;
 use App\Http\Controllers\FeedbackController;
@@ -53,6 +54,11 @@ Route::post('libraries/join/{token}', [ActivityLibraryController::class, 'joinAc
 Route::middleware(['auth', 'verified'])->group(function () {
     // The camps list is the app's home; keep the name so existing links redirect.
     Route::redirect('dashboard', '/camps')->name('dashboard');
+
+    // The "what's new" dialog: fetched on demand from the sidebar, and
+    // acknowledged when it is closed.
+    Route::get('changelog', [ChangelogController::class, 'show'])->name('changelog.show');
+    Route::post('changelog/seen', [ChangelogController::class, 'dismiss'])->name('changelog.seen');
 
     // Camps
     Route::get('camps', [CampController::class, 'index'])->name('camps.index');

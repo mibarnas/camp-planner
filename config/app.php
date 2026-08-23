@@ -16,6 +16,14 @@ return [
     'name' => env('APP_NAME', 'TáborPlanner'),
 
     /*
+    | The released version, as x.y.z. Bumping this shows everyone the matching
+    | changelog entry from resources/changelog/<version>.<locale>.md once, so
+    | only bump it when there is an entry to go with it.
+    */
+
+    'version' => '1.0.0',
+
+    /*
     |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
@@ -84,7 +92,7 @@ return [
     | The locales the UI ships translations for. Drives the language
     | switcher and validates the `locale` cookie.
     */
-    'supported_locales' => ['sk', 'en'],
+    'supported_locales' => ['sk', 'en', 'de'],
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 

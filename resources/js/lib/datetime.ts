@@ -7,6 +7,7 @@ import { currentLocale } from '@/i18n';
 const INTL_TAGS = {
     sk: 'sk-SK',
     en: 'en-GB',
+    de: 'de-DE',
 } as const;
 
 /** The `Intl` locale matching the UI language. */

@@ -12,7 +12,6 @@ import {
     Trophy,
 } from '@lucide/vue';
 import { computed, ref, watch, watchEffect } from 'vue';
-import CampOnboardingDialog from '@/components/camp/CampOnboardingDialog.vue';
 import DayDialog from '@/components/camp/DayDialog.vue';
 import DayReviewDialog from '@/components/camp/DayReviewDialog.vue';
 import EntryDialog from '@/components/camp/EntryDialog.vue';
@@ -34,7 +33,6 @@ import { Label } from '@/components/ui/label';
 import { useI18n } from '@/i18n';
 import { colorStyle } from '@/lib/campColors';
 import { campIcon } from '@/lib/campIcons';
-import { pendingCampOnboarding } from '@/lib/campOnboarding';
 import { index as campsIndex } from '@/routes/camps';
 import {
     duplicate as duplicateCamp,
@@ -254,20 +252,6 @@ const entryNeedingPoints = computed(() => {
 
 // --- Other dialogs ---
 const versionsOpen = ref(false);
-
-// --- Onboarding, shown once right after this camp was created ---
-const onboardingOpen = ref(false);
-watch(
-    pendingCampOnboarding,
-    (pending) => {
-        if (pending) {
-            // Consume it, so navigating back here never reopens the modal.
-            pendingCampOnboarding.value = false;
-            onboardingOpen.value = true;
-        }
-    },
-    { immediate: true },
-);
 
 // --- Fill name days from the Slovak calendar ---
 function fillNames() {
@@ -503,7 +487,6 @@ function submitDuplicate() {
         :is-owner="camp.is_owner"
         :schedule-locked="camp.schedule_locked"
     />
-    <CampOnboardingDialog v-model:open="onboardingOpen" />
 
     <!-- Duplicate -->
     <Dialog v-model:open="duplicateOpen">

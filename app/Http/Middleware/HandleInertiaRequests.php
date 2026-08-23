@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Camp;
+use App\Support\ChangelogDocument;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -46,6 +47,33 @@ class HandleInertiaRequests extends Middleware
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'campContext' => $this->campContext($request),
+            'changelog' => fn () => $this->changelog($request),
+        ];
+    }
+
+    /**
+     * The release notes this user has not acknowledged yet, or null.
+     *
+     * Shared rather than flashed because there is no redirect to hang a flash
+     * on after a deploy: the user may land on any page, and the dialog has to
+     * keep coming back until they dismiss it.
+     *
+     * @return array{version: string, html: string}|null
+     */
+    protected function changelog(Request $request): ?array
+    {
+        $user = $request->user();
+        $version = (string) config('app.version');
+
+        if ($user === null
+            || ! version_compare($user->last_seen_version ?? '0.0.0', $version, '<')
+            || ! ChangelogDocument::exists($version)) {
+            return null;
+        }
+
+        return [
+            'version' => $version,
+            'html' => ChangelogDocument::render($version, app()->getLocale()),
         ];
     }
 
