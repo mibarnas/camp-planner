@@ -1,6 +1,13 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
-import { CircleQuestionMark, ListChecks, Sparkles, Tent } from '@lucide/vue';
+import { Link, usePage } from '@inertiajs/vue3';
+import {
+    CircleQuestionMark,
+    ListChecks,
+    ShieldCheck,
+    Sparkles,
+    Tent,
+} from '@lucide/vue';
+import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavCamp from '@/components/NavCamp.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -18,12 +25,15 @@ import { useI18n } from '@/i18n';
 import { campOnboardingOpen } from '@/lib/campOnboarding';
 import { changelogOpen } from '@/lib/changelog';
 import { index as activitiesIndex } from '@/routes/activities';
+import { index as adminIndex } from '@/routes/admin';
 import { index as campsIndex } from '@/routes/camps';
 import type { NavItem } from '@/types';
 
 const { t } = useI18n();
 
-const mainNavItems: NavItem[] = [
+const page = usePage();
+
+const mainNavItems = computed<NavItem[]>(() => [
     {
         title: t('nav.camps'),
         href: campsIndex(),
@@ -34,7 +44,10 @@ const mainNavItems: NavItem[] = [
         href: activitiesIndex(),
         icon: ListChecks,
     },
-];
+    ...(page.props.auth.isAdmin
+        ? [{ title: t('nav.admin'), href: adminIndex(), icon: ShieldCheck }]
+        : []),
+]);
 </script>
 
 <template>

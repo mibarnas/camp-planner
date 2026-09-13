@@ -54,6 +54,16 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Whether this is the single administrator account (config `app.admin_email`).
+     */
+    public function isAdmin(): bool
+    {
+        $adminEmail = (string) config('app.admin_email');
+
+        return $adminEmail !== '' && strcasecmp($this->email, $adminEmail) === 0;
+    }
+
+    /**
      * Camps this user owns.
      *
      * @return HasMany<Camp, $this>

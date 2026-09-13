@@ -24,6 +24,13 @@ return [
     'version' => '1.0.0',
 
     /*
+    | The one account that may open the administrator panel. Matched on the
+    | e-mail address, case-insensitively.
+    */
+
+    'admin_email' => env('ADMIN_EMAIL', 'michal@barnas.net'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------

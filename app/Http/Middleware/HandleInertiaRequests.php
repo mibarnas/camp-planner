@@ -44,6 +44,7 @@ class HandleInertiaRequests extends Middleware
             'supportedLocales' => HandleLocale::supported(),
             'auth' => [
                 'user' => $request->user(),
+                'isAdmin' => (bool) $request->user()?->isAdmin(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'campContext' => $this->campContext($request),

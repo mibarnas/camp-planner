@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActivityCategoryController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\ActivityLibraryController;
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\CampController;
 use App\Http\Controllers\CampDayController;
 use App\Http\Controllers\CampLeaderController;
@@ -59,6 +60,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // acknowledged when it is closed.
     Route::get('changelog', [ChangelogController::class, 'show'])->name('changelog.show');
     Route::post('changelog/seen', [ChangelogController::class, 'dismiss'])->name('changelog.seen');
+
+    // Administrator panel — only the account named by config('app.admin_email').
+    Route::get('admin', [AdminController::class, 'index'])->middleware('can:admin')->name('admin.index');
 
     // Camps
     Route::get('camps', [CampController::class, 'index'])->name('camps.index');
